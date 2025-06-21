@@ -1,0 +1,25 @@
+ # ---------- build stage ----------
+FROM node:18-alpine AS build
+WORKDIR /app
+
+# 1) install only runtime deps
+COPY package*.json ./
+RUN npm ci --omit=dev            # this is the line that failed before
+
+# 2) copy source files
+COPY public ./public
+COPY server.js .
+
+# ---------- run stage ----------
+FROM node:18-alpine
+WORKDIR /app
+
+# bring built app in
+COPY --from=build /app /app
+
+# Railway will inject $PORT at runtime
+ENV NODE_ENV=production
+
+EXPOSE 3000
+CMD ["node", "server.js"]
+

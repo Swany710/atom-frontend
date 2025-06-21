@@ -1,0 +1,17 @@
+ {
+  "name": "atom-frontend",
+  "version": "1.0.0",
+  "description": "Static front-end served via Express and Docker on Railway",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",                 // Railway runs this
+    "dev":   "npx live-server public --port=3001 --open=/index.html"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "live-server": "^1.2.2"
+  },
+  "engines": { "node": ">=18" }
+}
