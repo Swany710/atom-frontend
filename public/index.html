@@ -1,957 +1,1224 @@
-
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Construction Assistant</title>
+    <title>Atom - Personal AI Assistant</title>
+    
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-    body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        background: #000000;
-        color: #ffffff;
-        overflow: hidden;
-    }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000000;
+            color: #ffffff;
+            overflow: hidden;
+        }
 
-    .app {
-        height: 100vh;
-        display: flex;
-        flex-direction: column;
-    }
+        .app {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
 
-    /* Header */
-    .header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 2rem;
-        gap: 1rem;
-    }
+        /* Memory Status Indicator */
+        .memory-status {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: 20px;
+            padding: 0.5rem 1rem;
+            font-size: 0.8rem;
+            color: #22c55e;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            z-index: 100;
+        }
 
-    .header-left {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-    }
+        .memory-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+            animation: pulse 2s infinite;
+        }
 
-    .back-button {
-        font-size: 2rem;
-        color: #ff6b35;
-        cursor: pointer;
-        transition: opacity 0.2s;
-    }
+        .memory-status.connected .memory-indicator {
+            background: #22c55e;
+        }
 
-    .back-button:hover {
-        opacity: 0.7;
-    }
+        .memory-status.error .memory-indicator {
+            background: #ef4444;
+        }
 
-    .title {
-        font-size: 3rem;
-        font-weight: 300;
-        color: #ff6b35;
-        letter-spacing: 2px;
-    }
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 2rem;
+            gap: 1rem;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(34, 197, 94, 0.2);
+        }
 
-    /* Header Right - Profile Dropdown */
-    .header-right {
-        position: relative;
-    }
+        .header-left {
+            display: flex;
+            align-items: center;
+            flex: 1;
+        }
 
-    .profile-dropdown {
-        position: relative;
-    }
+        .header-center {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+        }
 
-    .profile-button {
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        border: 2px solid #ff6b35;
-        background: rgba(255, 107, 53, 0.1);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        font-size: 1.2rem;
-        color: #ff6b35;
-    }
+        .header-right {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            flex: 1;
+        }
 
-    .profile-button:hover {
-        background: rgba(255, 107, 53, 0.2);
-        transform: scale(1.05);
-    }
-
-    .dropdown-menu {
-        position: absolute;
-        top: 60px;
-        right: 0;
-        width: 250px;
-        background: rgba(10, 10, 10, 0.95);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 107, 53, 0.3);
-        border-radius: 12px;
-        padding: 1rem;
-        opacity: 0;
-        visibility: hidden;
-        transform: translateY(-10px);
-        transition: all 0.3s ease;
-        z-index: 1000;
-    }
-
-    .dropdown-menu.visible {
-        opacity: 1;
-        visibility: visible;
-        transform: translateY(0);
-    }
-
-    .dropdown-item {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        padding: 0.75rem;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: background 0.2s;
-        color: #ccc;
-        margin-bottom: 0.5rem;
-    }
-
-    .dropdown-item:hover {
-        background: rgba(255, 107, 53, 0.1);
-        color: #ff6b35;
-    }
-
-    .dropdown-item:last-child {
-        margin-bottom: 0;
-    }
-
-    /* Main Content */
-    .main-content {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 2rem;
-        position: relative;
-    }
-
-    /* Voice Interface */
-    .voice-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 3rem;
-        width: 100%;
-        max-width: 800px;
-    }
-
-    .waveform-container {
-        width: 100%;
-        height: 300px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        position: relative;
-    }
-
-    /* Smooth SVG Waveform */
-    .waveform-svg {
-        width: 100%;
-        height: 100%;
-    }
-
-    .waveform-path {
-        fill: none;
-        stroke: url(#waveGradient);
-        stroke-width: 3;
-        filter: url(#glow);
-    }
-
-    .waveform-fill {
-        fill: url(#waveGradientFill);
-        opacity: 0.3;
-    }
-
-    /* Control Buttons */
-    .controls {
-        display: flex;
-        gap: 2rem;
-        align-items: center;
-    }
-
-    .voice-button {
-        width: 80px;
-        height: 80px;
-        border-radius: 50%;
-        border: 3px solid #ff6b35;
-        background: rgba(255, 107, 53, 0.1);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        font-size: 2rem;
-        color: #ff6b35;
-    }
-
-    .voice-button:hover {
-        background: rgba(255, 107, 53, 0.2);
-        transform: scale(1.05);
-    }
-
-    .voice-button.recording {
-        background: #ff6b35;
-        color: #000000;
-        animation: recordPulse 1s ease-in-out infinite;
-    }
-
-    @keyframes recordPulse {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.7); }
-        50% { box-shadow: 0 0 0 20px rgba(255, 107, 53, 0); }
-    }
-
-    .secondary-button {
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        border: 2px solid #666;
-        background: rgba(255, 255, 255, 0.05);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        font-size: 1.5rem;
-        color: #999;
-    }
-
-    .secondary-button:hover {
-        border-color: #ff6b35;
-        color: #ff6b35;
-    }
-
-    /* Status Text */
-    .status-text {
-        font-size: 1.2rem;
-        color: #999;
-        text-align: center;
-        min-height: 2rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .status-text.listening {
-        color: #ff6b35;
-    }
-
-    /* Response Area */
-    .response-area {
-        position: absolute;
-        bottom: 2rem;
-        left: 2rem;
-        right: 2rem;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 107, 53, 0.3);
-        border-radius: 12px;
-        padding: 1.5rem;
-        backdrop-filter: blur(10px);
-        transform: translateY(100%);
-        transition: transform 0.3s ease;
-    }
-
-    .response-area.visible {
-        transform: translateY(0);
-    }
-
-    .response-title {
-        color: #ff6b35;
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-    }
-
-    .response-content {
-        color: #ccc;
-        line-height: 1.5;
-    }
-
-    /* Navigation Menu */
-    .nav-menu {
-        position: fixed;
-        top: 0;
-        left: -300px;
-        width: 300px;
-        height: 100vh;
-        background: rgba(0, 0, 0, 0.95);
-        backdrop-filter: blur(20px);
-        border-right: 1px solid rgba(255, 107, 53, 0.3);
-        transition: left 0.3s ease;
-        z-index: 1000;
-        padding: 2rem;
-    }
-
-    .nav-menu.open {
-        left: 0;
-    }
-
-    .nav-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 2rem;
-        border-bottom: 1px solid rgba(255, 107, 53, 0.3);
-        padding-bottom: 1rem;
-    }
-
-    .nav-title {
-        color: #ff6b35;
-        font-size: 1.5rem;
-        font-weight: 600;
-    }
-
-    .close-nav {
-        color: #ff6b35;
-        font-size: 1.5rem;
-        cursor: pointer;
-    }
-
-    .nav-items {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-    }
-
-    .nav-item {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        padding: 1rem;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: background 0.2s;
-        color: #ccc;
-    }
-
-    .nav-item:hover {
-        background: rgba(255, 107, 53, 0.1);
-        color: #ff6b35;
-    }
-
-    .nav-item.active {
-        background: rgba(255, 107, 53, 0.2);
-        color: #ff6b35;
-    }
-
-    /* Overlay */
-    .overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
-        opacity: 0;
-        visibility: hidden;
-        transition: all 0.3s ease;
-        z-index: 999;
-    }
-
-    .overlay.visible {
-        opacity: 1;
-        visibility: visible;
-    }
-
-    /* Loading Spinner */
-    .loading {
-        display: inline-block;
-        width: 20px;
-        height: 20px;
-        border: 3px solid rgba(255, 107, 53, 0.3);
-        border-radius: 50%;
-        border-top-color: #ff6b35;
-        animation: spin 1s ease-in-out infinite;
-    }
-
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
-
-    /* Responsive */
-    @media (max-width: 768px) {
-        .title {
+        .back-button {
             font-size: 2rem;
+            color: #22c55e;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            padding: 0.5rem;
+            border-radius: 8px;
         }
-        
-        .voice-button {
-            width: 70px;
-            height: 70px;
-            font-size: 1.8rem;
+
+        .back-button:hover {
+            background: rgba(34, 197, 94, 0.1);
+            transform: scale(1.1);
         }
-        
-        .secondary-button {
+
+        .title {
+            font-size: 3rem;
+            font-weight: 300;
+            background: linear-gradient(135deg, #22c55e 0%, #10b981 50%, #06b6d4 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 2px;
+        }
+
+        /* Profile Dropdown */
+        .profile-dropdown {
+            position: relative;
+        }
+
+        .profile-button {
             width: 50px;
             height: 50px;
+            border-radius: 50%;
+            border: 2px solid #22c55e;
+            background: rgba(34, 197, 94, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
             font-size: 1.2rem;
+            color: #22c55e;
         }
-        
-        .nav-menu {
-            width: 280px;
+
+        .profile-button:hover {
+            background: rgba(34, 197, 94, 0.2);
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
         }
-    }
-</style>
+
+        .dropdown-menu {
+            position: absolute;
+            top: 60px;
+            right: 0;
+            width: 250px;
+            background: rgba(0, 0, 0, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: 12px;
+            padding: 1rem;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .dropdown-menu.visible {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            color: #ccc;
+            margin-bottom: 0.5rem;
+        }
+
+        .dropdown-item:hover {
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            position: relative;
+        }
+
+        /* Voice Interface */
+        .voice-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3rem;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .waveform-container {
+            width: 100%;
+            height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .waveform-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .waveform-path {
+            fill: none;
+            stroke: url(#waveGradient);
+            stroke-width: 3;
+            filter: url(#glow);
+        }
+
+        .waveform-fill {
+            fill: url(#waveGradientFill);
+            opacity: 0.3;
+        }
+
+        .controls {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .voice-button {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #22c55e 0%, #10b981 30%, #06b6d4 70%, #0891b2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 2rem;
+            color: transparent;
+            box-shadow: 
+                0 4px 8px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+
+        .voice-button:hover {
+            transform: scale(1.05);
+        }
+
+        .voice-button.recording {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 30%, #b91c1c 70%, #991b1b 100%);
+            animation: recording-pulse 1s infinite;
+            transform: scale(1.1);
+        }
+
+        @keyframes recording-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.7); }
+            50% { box-shadow: 0 0 0 20px rgba(255, 107, 53, 0); }
+        }
+
+        .status-text {
+            font-size: 1.2rem;
+            color: #999;
+            text-align: center;
+            min-height: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .status-text.listening {
+            color: #22c55e;
+            animation: pulse 1.5s infinite;
+        }
+
+        .status-text.processing {
+            color: #06b6d4;
+        }
+
+        .status-text.success {
+            color: #00ff88;
+        }
+
+        .status-text.error {
+            color: #ff4444;
+        }
+
+        .status-text.warning {
+            color: #ffaa00;
+        }
+
+        .status-text.info {
+            color: #4488ff;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        /* Response Area */
+        .response-area {
+            position: absolute;
+            bottom: 2rem;
+            left: 2rem;
+            right: 2rem;
+            background: rgba(0, 0, 0, 0.95);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: 16px;
+            padding: 1.5rem;
+            backdrop-filter: blur(20px);
+            transform: translateY(calc(100% - 60px));
+            transition: all 0.3s ease;
+            max-height: 50vh;
+            overflow: hidden;
+            cursor: pointer;
+            z-index: 100;
+        }
+
+        .response-area:hover {
+            transform: translateY(0);
+        }
+
+        .response-area.pinned {
+            transform: translateY(0);
+            cursor: default;
+        }
+
+        .response-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid rgba(34, 197, 94, 0.2);
+            padding-bottom: 0.5rem;
+        }
+
+        .response-title {
+            color: #22c55e;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .conversation-controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-left: auto;
+        }
+
+        .control-button {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #22c55e;
+            border-radius: 6px;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .control-button:hover {
+            background: rgba(34, 197, 94, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .response-content-container {
+            max-height: calc(40vh - 100px);
+            overflow-y: auto;
+        }
+
+        .response-content {
+            color: #e2e8f0;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .text-input-section {
+            border-top: 1px solid rgba(34, 197, 94, 0.2);
+            padding-top: 1rem;
+            margin-top: 1rem;
+        }
+
+        .text-input-container {
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-end;
+        }
+
+        .text-input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: 8px;
+            padding: 0.75rem;
+            color: #ffffff;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            resize: none;
+            min-height: 40px;
+            max-height: 120px;
+            transition: all 0.3s ease;
+        }
+
+        .text-input:focus {
+            outline: none;
+            border-color: #22c55e;
+            box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+        }
+
+        .send-button {
+            background: linear-gradient(135deg, #22c55e 0%, #10b981 100%);
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 60px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .send-button:hover {
+            background: linear-gradient(135deg, #16a34a 0%, #059669 100%);
+            transform: translateY(-1px);
+        }
+
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Conversation Styles */
+        .conversation-welcome {
+            text-align: center;
+            padding: 2rem;
+            color: #999;
+        }
+
+        .conversation-thread {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .conversation-message {
+            border-radius: 12px;
+            padding: 1rem;
+            max-width: 85%;
+            animation: messageSlideIn 0.3s ease-out;
+        }
+
+        @keyframes messageSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .user-message {
+            align-self: flex-end;
+            background: rgba(34, 197, 94, 0.15);
+            border-left: 3px solid #22c55e;
+            border-bottom-right-radius: 4px;
+        }
+
+        .assistant-message {
+            align-self: flex-start;
+            background: rgba(6, 182, 212, 0.15);
+            border-left: 3px solid #06b6d4;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .message-role {
+            color: #22c55e;
+            font-weight: 600;
+        }
+
+        .assistant-message .message-role {
+            color: #06b6d4;
+        }
+
+        .message-time {
+            color: #666;
+            font-size: 0.75rem;
+        }
+
+        .message-content {
+            color: #e2e8f0;
+            line-height: 1.5;
+            font-size: 0.95rem;
+        }
+
+        .user-message .message-content {
+            font-style: italic;
+        }
+
+        .conversation-stats {
+            text-align: center;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(34, 197, 94, 0.2);
+            color: #666;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header {
+                padding: 1rem;
+            }
+            
+            .title {
+                font-size: 2rem;
+            }
+            
+            .voice-button {
+                width: 70px;
+                height: 70px;
+                font-size: 1.8rem;
+            }
+
+            .response-area {
+                left: 1rem;
+                right: 1rem;
+                max-height: 300px;
+            }
+
+            .voice-container {
+                gap: 2rem;
+            }
+
+            .waveform-container {
+                height: 150px;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="app">
-        <!-- Navigation Menu -->
-        <div class="nav-menu" id="navMenu">
-            <div class="nav-header">
-                <div class="nav-title">Menu</div>
-                <div class="close-nav" onclick="toggleMenu()">×</div>
-            </div>
-            <div class="nav-items">
-                <div class="nav-item active" onclick="showVoiceInterface()">
-                    <span>🎤</span>
-                    <span>Voice Assistant</span>
-                </div>
-                <div class="nav-item" onclick="showDashboard()">
-                    <span>📊</span>
-                    <span>Dashboard</span>
-                </div>
-                <div class="nav-item" onclick="showTasks()">
-                    <span>✓</span>
-                    <span>Tasks</span>
-                </div>
-                <div class="nav-item" onclick="showContacts()">
-                    <span>👥</span>
-                    <span>Contacts</span>
-                </div>
-                <div class="nav-item" onclick="showCalendar()">
-                    <span>📅</span>
-                    <span>Calendar</span>
-                </div>
-                <div class="nav-item" onclick="showEmail()">
-                    <span>✉️</span>
-                    <span>Email</span>
-                </div>
-                <div class="nav-item" onclick="showPhotos()">
-                    <span>📸</span>
-                    <span>Photos</span>
-                </div>
-                <div class="nav-item" onclick="showSettings()">
-                    <span>⚙️</span>
-                    <span>Settings</span>
-                </div>
-            </div>
+        <!-- Memory Status Indicator -->
+        <div class="memory-status" id="memoryStatus">
+            <div class="memory-indicator"></div>
+            <span id="memoryStatusText">Connecting...</span>
         </div>
-    <!-- Overlay -->
-    <div class="overlay" id="overlay" onclick="closeMenus()"></div>
 
-    <!-- Header -->
-    <div class="header">
-        <div class="header-left">
-            <div class="back-button" onclick="toggleMenu()">≪</div>
-            <div class="title">Assistant</div>
-        </div>
-        
-        <div class="header-right">
-            <div class="profile-dropdown">
-                <div class="profile-button" onclick="toggleProfileDropdown()">
-                    👤
+        <!-- Header -->
+        <div class="header">
+            <div class="header-left">
+                <div class="back-button" onclick="toggleMenu()">≪</div>
+            </div>
+            
+            <div class="header-center">
+                <div class="title">Atom</div>
+            </div>
+            
+            <div class="header-right">
+                <div class="profile-dropdown">
+                    <div class="profile-button" onclick="toggleProfileDropdown()">
+                        👤
+                    </div>
+                    <div class="dropdown-menu" id="profileDropdown">
+                        <div class="dropdown-item" onclick="testAI()">
+                            <span>🧠</span>
+                            <span>Test AI</span>
+                        </div>
+                        <div class="dropdown-item" onclick="testBackend()">
+                            <span>🔧</span>
+                            <span>Test Backend</span>
+                        </div>
+                        <div class="dropdown-item" onclick="clearConversation()">
+                            <span>🗑️</span>
+                            <span>Clear Chat</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="dropdown-menu" id="profileDropdown">
-                    <div class="dropdown-item" onclick="showProfile()">
-                        <span>👤</span>
-                        <span>Profile</span>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="voice-container">
+                <!-- Waveform Visualization -->
+                <div class="waveform-container">
+                    <svg class="waveform-svg" id="waveformSvg" viewBox="0 0 800 300">
+                        <defs>
+                            <linearGradient id="waveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#22c55e;stop-opacity:1" />
+                                <stop offset="50%" style="stop-color:#10b981;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:1" />
+                            </linearGradient>
+                            
+                            <linearGradient id="waveGradientFill" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" style="stop-color:#22c55e;stop-opacity:0.6" />
+                                <stop offset="100%" style="stop-color:#22c55e;stop-opacity:0.1" />
+                            </linearGradient>
+                            
+                            <filter id="glow">
+                                <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                                <feMerge> 
+                                    <feMergeNode in="coloredBlur"/>
+                                    <feMergeNode in="SourceGraphic"/>
+                                </feMerge>
+                            </filter>
+                        </defs>
+                        
+                        <path id="waveformPath" class="waveform-path" d="M 0 150 Q 200 150 400 150 Q 600 150 800 150"></path>
+                        <path id="waveformFill" class="waveform-fill" d="M 0 150 Q 200 150 400 150 Q 600 150 800 150 L 800 300 L 0 300 Z"></path>
+                    </svg>
+                </div>
+
+                <!-- Control Buttons -->
+                <div class="controls">
+                    <div class="voice-button" id="voiceButton" onclick="toggleRecording()">
                     </div>
-                    <div class="dropdown-item" onclick="showNotifications()">
-                        <span>🔔</span>
-                        <span>Notifications</span>
+                </div>
+
+                <!-- Status Text -->
+                <div class="status-text" id="statusText">
+                    Ready for voice or text commands...
+                </div>
+            </div>
+
+            <!-- Response Area -->
+            <div class="response-area" id="responseArea" onclick="handleResponseAreaClick(event)">
+                <div class="response-header">
+                    <div class="response-title">Atom - Personal AI Assistant</div>
+                    <div class="conversation-controls">
+                        <button class="control-button" onclick="clearConversation()" title="Clear conversation">
+                            🗑️ Clear
+                        </button>
                     </div>
-                    <div class="dropdown-item" onclick="showSettings()">
-                        <span>⚙️</span>
-                        <span>Settings</span>
+                </div>
+                
+                <div class="response-content-container">
+                    <div class="response-content" id="responseContent">
+                        <div class="conversation-welcome">
+                            <div>👋 Hello! I'm Atom, your personal AI assistant.</div>
+                            <div style="margin-top: 1rem; color: #999;">I can help with daily tasks, planning, questions, and more. Try voice or text!</div>
+                        </div>
                     </div>
-                    <div class="dropdown-item" onclick="logout()">
-                        <span>🚪</span>
-                        <span>Logout</span>
+                </div>
+
+                <div class="text-input-section">
+                    <div class="text-input-container">
+                        <textarea 
+                            class="text-input" 
+                            id="textInput" 
+                            placeholder="Type your message here..."
+                            rows="1"
+                            onkeydown="handleTextInputKeydown(event)"
+                            onclick="event.stopPropagation()"
+                        ></textarea>
+                        <button class="send-button" id="sendButton" onclick="sendTextMessage()">
+                            Send
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Main Content -->
-    <div class="main-content">
-        <div class="voice-container">
-            <!-- Smooth Waveform Visualization -->
-            <div class="waveform-container">
-                <svg class="waveform-svg" id="waveformSvg" viewBox="0 0 800 300">
-                    <defs>
-                        <!-- Gradient for the waveform -->
-                        <linearGradient id="waveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" style="stop-color:#ff6b35;stop-opacity:1" />
-                            <stop offset="50%" style="stop-color:#ff8f50;stop-opacity:1" />
-                            <stop offset="100%" style="stop-color:#ff6b35;stop-opacity:1" />
-                        </linearGradient>
-                        
-                        <!-- Gradient for the fill -->
-                        <linearGradient id="waveGradientFill" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" style="stop-color:#ff6b35;stop-opacity:0.6" />
-                            <stop offset="100%" style="stop-color:#ff6b35;stop-opacity:0.1" />
-                        </linearGradient>
-                        
-                        <!-- Glow effect -->
-                        <filter id="glow">
-                            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-                            <feMerge> 
-                                <feMergeNode in="coloredBlur"/>
-                                <feMergeNode in="SourceGraphic"/>
-                            </feMerge>
-                        </filter>
-                    </defs>
+    <script>
+        // Global State
+        let isRecording = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let waveformAnimationId = null;
+        let responseAreaPinned = false;
+        let unpinTimeout = null;
+        let conversationMessages = [];
+        
+        // Backend API Configuration
+        const apiBaseUrl = 'https://atom-backend-production-8a1e.up.railway.app/api/v1';
+        
+        // Waveform animation variables
+        let waveformPoints = [];
+        let animationTime = 0;
+        const numPoints = 50;
+
+        // Initialize Application
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Initializing Atom Personal AI Assistant...');
+            
+            initializeWaveform();
+            startWaveformAnimation();
+            setupTextInput();
+            
+            // Check backend status
+            await checkBackendStatus();
+        });
+
+        // Backend status check
+        async function checkBackendStatus() {
+            try {
+                updateStatus('Connecting to backend...', 'processing');
+                updateMemoryStatus('connecting', 'Connecting...');
+                
+                const response = await fetch(`${apiBaseUrl}/ai/health`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const status = await response.json();
+                console.log('Backend status:', status);
+                
+                updateMemoryStatus('connected', 'Backend Connected');
+                updateStatus('Ready! Try voice or text commands.', 'success');
+                
+            } catch (error) {
+                console.error('Backend connection failed:', error);
+                updateMemoryStatus('error', 'Backend Unavailable');
+                updateStatus('Backend unavailable. Check connection.', 'error');
+            }
+        }
+
+        // Test AI functionality
+        async function testAI() {
+            updateStatus('Testing AI...', 'processing');
+            await processTextCommand('Hello Atom! This is a test of your AI capabilities.');
+        }
+
+        // Process text command
+        async function processTextCommand(text) {
+            try {
+                updateStatus('Processing with AI...', 'processing');
+                
+                // Add user message to conversation
+                addMessageToConversation('user', text);
+                
+                const response = await fetch(`${apiBaseUrl}/ai/text-command1`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: text,
+                        userId: 'default-user'
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+
+                const result = await response.json();
+                console.log('AI response:', result);
+                
+                if (result.mode === 'openai') {
+                    // Add AI response to conversation
+                    addMessageToConversation('assistant', result.message);
+                    updateStatus('Response generated successfully!', 'success');
+                    pinResponseArea();
+                } else if (result.mode === 'error') {
+                    throw new Error(result.error || 'AI processing failed');
+                } else {
+                    addMessageToConversation('assistant', result.message);
+                    updateStatus('Response generated (demo mode)', 'warning');
+                    pinResponseArea();
+                }
+                
+            } catch (error) {
+                console.error('Error processing text:', error);
+                updateStatus('Error: ' + error.message, 'error');
+                addMessageToConversation('assistant', `Sorry, I encountered an error: ${error.message}`);
+                pinResponseArea();
+            }
+        }
+
+        // Voice recording functions
+        async function toggleRecording() {
+            if (!isRecording) {
+                await startRecording();
+            } else {
+                stopRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                updateStatus('Requesting microphone access...', 'processing');
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 44100
+                    }
+                });
+                
+                audioChunks = [];
+                
+                // Try different mime types for better compatibility
+                let mimeType = 'audio/webm;codecs=opus';
+                if (!MediaRecorder.isTypeSupported(mimeType)) {
+                    mimeType = 'audio/webm';
+                    if (!MediaRecorder.isTypeSupported(mimeType)) {
+                        mimeType = 'audio/mp4';
+                        if (!MediaRecorder.isTypeSupported(mimeType)) {
+                            mimeType = ''; // Let browser choose
+                        }
+                    }
+                }
+                
+                const options = mimeType ? { mimeType } : {};
+                mediaRecorder = new MediaRecorder(stream, options);
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    console.log('Audio chunk received, size:', event.data.size);
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = processAudioRecording;
+                
+                mediaRecorder.start();
+                isRecording = true;
+                
+                updateRecordingUI(true);
+                updateStatus('🎤 Listening... Speak now!', 'listening');
+                
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                updateStatus('Microphone access denied. Please allow microphone access.', 'error');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            
+            if (mediaRecorder?.stream) {
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+            
+            isRecording = false;
+            updateRecordingUI(false);
+            updateStatus('Processing your voice command...', 'processing');
+        }
+
+        // Process voice recording
+        async function processAudioRecording() {
+            try {
+                console.log('Processing audio recording...');
+                console.log('Audio chunks:', audioChunks.length);
+                
+                if (audioChunks.length === 0) {
+                    throw new Error('No audio data recorded');
+                }
+
+                const audioBlob = new Blob(audioChunks, { 
+                    type: audioChunks[0].type || 'audio/webm' 
+                });
+                
+                console.log('Audio blob size:', audioBlob.size);
+                
+                if (audioBlob.size === 0) {
+                    throw new Error('Audio recording is empty');
+                }
+                
+                updateStatus('Transcribing and processing...', 'processing');
+                
+                // Create FormData for voice upload
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'recording.webm');
+                formData.append('userId', 'default-user');
+                
+                const response = await fetch(`${apiBaseUrl}/ai/voice-command1`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Voice API error: ${response.status} - ${errorText}`);
+                }
+
+                const result = await response.json();
+                console.log('Voice processing result:', result);
+                
+                if (result.mode === 'openai' && result.transcription) {
+                    // Add user voice message (transcription) to conversation
+                    addMessageToConversation('user', `🎤 "${result.transcription}"`);
                     
-                    <!-- Waveform path will be generated by JavaScript -->
-                    <path id="waveformPath" class="waveform-path" d="M 0 150 Q 200 150 400 150 Q 600 150 800 150"></path>
-                    <path id="waveformFill" class="waveform-fill" d="M 0 150 Q 200 150 400 150 Q 600 150 800 150 L 800 300 L 0 300 Z"></path>
-                </svg>
-            </div>
-
-            <!-- Control Buttons -->
-            <div class="controls">
-                <div class="secondary-button" onclick="playLastRecording()" title="Play Last">
-                    ▶️
-                </div>
+                    // Add AI response to conversation
+                    addMessageToConversation('assistant', result.message);
+                    
+                    updateStatus('Voice command processed successfully!', 'success');
+                    pinResponseArea();
+                } else if (result.mode === 'error') {
+                    throw new Error(result.error || 'Voice processing failed');
+                } else {
+                    // Fallback for demo mode
+                    addMessageToConversation('user', '🎤 [Voice command]');
+                    addMessageToConversation('assistant', result.message);
+                    updateStatus('Voice processed (demo mode)', 'warning');
+                    pinResponseArea();
+                }
                 
-                <div class="voice-button" id="voiceButton" onclick="toggleRecording()">
-                    🎤
-                </div>
-                
-                <div class="secondary-button" onclick="clearTranscription()" title="Clear">
-                    🗑️
-                </div>
-            </div>
-
-            <!-- Status Text -->
-            <div class="status-text" id="statusText">
-                Tap the microphone to start speaking
-            </div>
-        </div>
-
-        <!-- Response Area -->
-        <div class="response-area" id="responseArea">
-            <div class="response-title">Response</div>
-            <div class="response-content" id="responseContent">
-                Your assistant response will appear here...
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-    // Global State
-    let isRecording = false;
-    let isListening = false;
-    let mediaRecorder = null;
-    let audioStream = null;
-    let audioChunks = [];
-    let waveformAnimationId = null;
-    const N8N_WEBHOOK = 'https://swany.app.n8n.cloud/webhook-test/voice-command';
-    // Waveform animation variables
-    let waveformPoints = [];
-    let animationTime = 0;
-    const numPoints = 50;
-
-    // Initialize Application
-    document.addEventListener('DOMContentLoaded', function() {
-        initializeWaveform();
-        checkAuthStatus();
-        startWaveformAnimation();
-    });
-
-    // Initialize Smooth Waveform
-    function initializeWaveform() {
-        // Initialize waveform points
-        for (let i = 0; i < numPoints; i++) {
-            waveformPoints.push({
-                x: (i / (numPoints - 1)) * 800,
-                y: 150 + Math.sin(i * 0.3) * 10,
-                amplitude: 10,
-                frequency: 0.3 + Math.random() * 0.2
-            });
+            } catch (error) {
+                console.error('Error processing audio:', error);
+                updateStatus('Voice processing error: ' + error.message, 'error');
+                addMessageToConversation('assistant', `Sorry, I had trouble with your voice command: ${error.message}`);
+                pinResponseArea();
+            }
         }
-    }
 
-    // Smooth Waveform Animation
-    function startWaveformAnimation() {
-        function animate() {
-            animationTime += 0.03;
-            
-            // Update waveform points
-            waveformPoints.forEach((point, index) => {
-                const baseAmplitude = isRecording ? 30 + Math.random() * 40 : 10;
-                const wave = Math.sin(animationTime * 2 + index * point.frequency) * baseAmplitude;
-                point.y = 150 + wave;
-            });
-
-            // Create smooth path
-            const pathData = createSmoothPath(waveformPoints);
-            const fillData = createSmoothPath(waveformPoints) + ' L 800 300 L 0 300 Z';
-            
-            document.getElementById('waveformPath').setAttribute('d', pathData);
-            document.getElementById('waveformFill').setAttribute('d', fillData);
-            
-            waveformAnimationId = requestAnimationFrame(animate);
-        }
-        animate();
-    }
-
-    // Create smooth path using quadratic curves
-    function createSmoothPath(points) {
-        if (points.length < 2) return '';
-        
-        let path = `M ${points[0].x} ${points[0].y}`;
-        
-        for (let i = 1; i < points.length - 1; i++) {
-            const currentPoint = points[i];
-            const nextPoint = points[i + 1];
-            const controlX = (currentPoint.x + nextPoint.x) / 2;
-            
-            path += ` Q ${currentPoint.x} ${currentPoint.y} ${controlX} ${(currentPoint.y + nextPoint.y) / 2}`;
-        }
-        
-        const lastPoint = points[points.length - 1];
-        path += ` Q ${lastPoint.x} ${lastPoint.y} ${lastPoint.x} ${lastPoint.y}`;
-        
-        return path;
-    }
-
-    // Toggle Recording
-    async function toggleRecording() {
-        if (!isRecording) {
-            await startRecording();
-        } else {
-            await stopRecording();
-        }
-    }
-
-    // Start Recording
-   async function startRecording() {
-         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-                audioChunks   = [];
-
-            // Create MediaRecorder
-            mediaRecorder = new MediaRecorder(audioStream, {
-                mimeType: 'audio/webm;codecs=opus'
-            });
-
-            // Setup event handlers
-            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-            mediaRecorder.onstop          = () => processRecording();
-            mediaRecorder.start();
-
-            mediaRecorder.onstop = () => {
-                processRecording();
+        // Add message to conversation
+        function addMessageToConversation(role, content) {
+            const message = {
+                role: role,
+                content: content,
+                timestamp: new Date()
             };
-
-            // Start recording
-            mediaRecorder.start();
-            isRecording = true;
-
-            // Update UI
-            updateRecordingUI(true);
-
-            console.log('Recording started...');
-
-         } catch (err) {
-    console.error('Mic access error:', err);
-  }
-}
-
-    // Stop Recording
-    async function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
-  }
-}
-
-    // Process Recording
-    async function processRecording() {
-  const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-
-  const formData = new FormData();
-  formData.append('audio', audioBlob, 'recording.webm');   // <— field name = audio
-
-  try {
-    const res = await fetch(N8N_WEBHOOK, {
-      method: 'POST',
-      body: formData       // DO NOT add headers; browser sets multipart boundary
-    });
-
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-
-    const result = await res.json();   // { transcription: "...", intent: ... }
-    displayResponse(result);           // your existing UI function
-
-  } catch (err) {
-    console.error('Webhook call failed:', err);
-    displayResponse({
-      transcription: '',
-      intent: { action: 'error', confidence: 0 },
-      error: err.message
-    });
-  }
-}
-
-    // Update Recording UI
-    function updateRecordingUI(recording) {
-        const voiceButton = document.getElementById('voiceButton');
-        const statusText = document.getElementById('statusText');
-
-        if (recording) {
-            voiceButton.classList.add('recording');
-            voiceButton.innerHTML = '⏹️';
-            statusText.classList.add('listening');
-            statusText.innerHTML = 'Listening... <span class="loading"></span>';
-        } else {
-            voiceButton.classList.remove('recording');
-            voiceButton.innerHTML = '🎤';
-            statusText.classList.remove('listening');
+            
+            conversationMessages.push(message);
+            updateConversationDisplay();
         }
-    }
 
-    // Update Status Text
-    function updateStatus(message) {
-        const statusText = document.getElementById('statusText');
-        statusText.textContent = message;
-    }
+        // Update conversation display
+        function updateConversationDisplay() {
+            const responseContent = document.getElementById('responseContent');
+            
+            if (conversationMessages.length === 0) {
+                responseContent.innerHTML = `
+                    <div class="conversation-welcome">
+                        <div>👋 Hello! I'm Atom, your personal AI assistant.</div>
+                        <div style="margin-top: 1rem; color: #999;">I can help with daily tasks, planning, questions, and more. Try voice or text!</div>
+                    </div>
+                `;
+                return;
+            }
 
-    // Display Response
-    function displayResponse(result) {
-        const responseArea = document.getElementById('responseArea');
-        const responseContent = document.getElementById('responseContent');
-        
-        const content = `
-            <div style="margin-bottom: 1rem;">
-                <strong>You said:</strong> "${result.transcription || 'Could not transcribe audio'}"
-            </div>
-            <div style="margin-bottom: 1rem;">
-                <strong>Intent:</strong> ${result.intent?.action || 'Unknown'} 
-                <span style="color: #666;">(${Math.round((result.intent?.confidence || 0) * 100)}% confidence)</span>
-            </div>
-            <div>
-                <strong>Action taken:</strong> ${getActionDescription(result.intent)}
-            </div>
-        `;
-        
-        responseContent.innerHTML = content;
-        responseArea.classList.add('visible');
-
-        // Hide after 10 seconds
-        setTimeout(() => {
-            responseArea.classList.remove('visible');
-        }, 10000);
-    }
-
-    // Get Action Description
-    function getActionDescription(intent) {
-        if (!intent) return 'No action taken';
-        
-        const descriptions = {
-            'create_task': 'Created a new task',
-            'send_email': 'Drafted an email',
-            'schedule_meeting': 'Added calendar event',
-            'add_contact': 'Added new contact',
-            'set_reminder': 'Created reminder',
-            'get_weather': 'Retrieved weather information',
-            'list_tasks': 'Listed your tasks',
-            'unknown': 'Command not recognized'
-        };
-        
-        return descriptions[intent.action] || `Executed: ${intent.action}`;
-    }
-
-    // Navigation Functions
-    function toggleMenu() {
-        const navMenu = document.getElementById('navMenu');
-        const overlay = document.getElementById('overlay');
-        
-        const isOpen = navMenu.classList.contains('open');
-        
-        if (isOpen) {
-            navMenu.classList.remove('open');
-            overlay.classList.remove('visible');
-        } else {
-            navMenu.classList.add('open');
-            overlay.classList.add('visible');
+            let conversationHtml = '<div class="conversation-thread">';
+            
+            conversationMessages.forEach(message => {
+                const timeStamp = message.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                const typeIcon = message.role === 'user' ? '💬' : '🤖';
+                
+                if (message.role === 'user') {
+                    conversationHtml += `
+                        <div class="conversation-message user-message">
+                            <div class="message-header">
+                                <span class="message-role">You ${typeIcon}</span>
+                                <span class="message-time">${timeStamp}</span>
+                            </div>
+                            <div class="message-content">${message.content}</div>
+                        </div>
+                    `;
+                } else {
+                    conversationHtml += `
+                        <div class="conversation-message assistant-message">
+                            <div class="message-header">
+                                <span class="message-role">Atom 🤖</span>
+                                <span class="message-time">${timeStamp}</span>
+                            </div>
+                            <div class="message-content">${message.content}</div>
+                        </div>
+                    `;
+                }
+            });
+            
+            conversationHtml += '</div>';
+            
+            // Add conversation stats
+            conversationHtml += `
+                <div class="conversation-stats">
+                    <small>${conversationMessages.length} messages • OpenAI GPT-3.5 Turbo</small>
+                </div>
+            `;
+            
+            responseContent.innerHTML = conversationHtml;
+            
+            // Scroll to bottom
+            const container = document.querySelector('.response-content-container');
+            container.scrollTop = container.scrollHeight;
         }
-        
-        // Close profile dropdown if open
-        closeProfileDropdown();
-    }
 
-    // Profile Dropdown Functions
-    function toggleProfileDropdown() {
-        const dropdown = document.getElementById('profileDropdown');
-        const overlay = document.getElementById('overlay');
-        
-        const isVisible = dropdown.classList.contains('visible');
-        
-        if (isVisible) {
-            dropdown.classList.remove('visible');
-            overlay.classList.remove('visible');
-        } else {
-            dropdown.classList.add('visible');
-            overlay.classList.add('visible');
+        // Text input functions
+        function setupTextInput() {
+            const textInput = document.getElementById('textInput');
+            
+            textInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+                
+                const sendButton = document.getElementById('sendButton');
+                sendButton.disabled = this.value.trim() === '';
+            });
+
+            const sendButton = document.getElementById('sendButton');
+            sendButton.disabled = true;
         }
-        
-        // Close navigation menu if open
-        closeMenu();
-    }
 
-    function closeProfileDropdown() {
-        const dropdown = document.getElementById('profileDropdown');
-        dropdown.classList.remove('visible');
-    }
-
-    function closeMenu() {
-        const navMenu = document.getElementById('navMenu');
-        navMenu.classList.remove('open');
-    }
-
-    function closeMenus() {
-        closeMenu();
-        closeProfileDropdown();
-        document.getElementById('overlay').classList.remove('visible');
-    }
-
-    // Navigation Menu Functions
-    function showVoiceInterface() {
-        toggleMenu();
-    }
-
-    function showDashboard() {
-        updateStatus('Dashboard feature coming soon...');
-        toggleMenu();
-    }
-
-    function showTasks() {
-        updateStatus('Tasks management coming soon...');
-        toggleMenu();
-    }
-
-    function showContacts() {
-        updateStatus('Contacts feature coming soon...');
-        toggleMenu();
-    }
-
-    function showCalendar() {
-        updateStatus('Calendar integration coming soon...');
-        toggleMenu();
-    }
-
-    function showEmail() {
-        updateStatus('Email drafting coming soon...');
-        toggleMenu();
-    }
-
-    function showPhotos() {
-        updateStatus('Photo management coming soon...');
-        toggleMenu();
-    }
-
-    function showSettings() {
-        updateStatus('Settings coming soon...');
-        closeMenus();
-    }
-
-    // Profile Functions
-    function showProfile() {
-        updateStatus('Profile management coming soon...');
-        closeMenus();
-    }
-
-    function showNotifications() {
-        updateStatus('No new notifications');
-        closeMenus();
-    }
-
-    function logout() {
-        updateStatus('Logging out...');
-        localStorage.removeItem('authToken');
-        closeMenus();
-        // Add logout logic here
-    }
-
-    // Utility Functions
-    function playLastRecording() {
-        updateStatus('Last recording playback coming soon...');
-    }
-
-    function clearTranscription() {
-        const responseArea = document.getElementById('responseArea');
-        responseArea.classList.remove('visible');
-        updateStatus('Tap the microphone to start speaking');
-    }
-
-    // Auth Functions
-    function checkAuthStatus() {
-        if (!authToken) {
-            authToken = 'demo-token';
-            localStorage.setItem('authToken', authToken);
-            updateStatus('Demo mode - connect to your backend for full functionality');
+        function handleTextInputKeydown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendTextMessage();
+            }
         }
-    }
 
-    // Keyboard Shortcuts
-    document.addEventListener('keydown', function(event) {
-        // Space bar to toggle recording
-        if (event.code === 'Space' && !event.target.matches('input, textarea')) {
-            event.preventDefault();
-            toggleRecording();
+        async function sendTextMessage() {
+            const textInput = document.getElementById('textInput');
+            const message = textInput.value.trim();
+            
+            if (!message) return;
+            
+            textInput.value = '';
+            textInput.style.height = 'auto';
+            document.getElementById('sendButton').disabled = true;
+            
+            await processTextCommand(message);
         }
-        
-        // Escape to close menus
-        if (event.code === 'Escape') {
-            closeMenus();
-        }
-    });
 
-    // Click outside to close dropdowns
-    document.addEventListener('click', function(event) {
-        const profileDropdown = document.getElementById('profileDropdown');
-        const profileButton = event.target.closest('.profile-button');
-        
-        if (!profileButton && !event.target.closest('.dropdown-menu')) {
-            closeProfileDropdown();
+        // Clear conversation
+        function clearConversation() {
+            conversationMessages = [];
+            updateConversationDisplay();
+            updateStatus('Conversation cleared. Ready for new commands!', 'info');
         }
-    });
 
-    // Error Handling
-    window.addEventListener('error', function(event) {
-        console.error('Application error:', event.error);
-        updateStatus('An error occurred. Please refresh the page.');
-    });
-
-    // Prevent zoom on double tap (mobile)
-    let lastTouchEnd = 0;
-    document.addEventListener('touchend', function (event) {
-        const now = (new Date()).getTime();
-        if (now - lastTouchEnd <= 300) {
-            event.preventDefault();
+        // UI utility functions
+        function updateRecordingUI(recording) {
+            const voiceButton = document.getElementById('voiceButton');
+            if (recording) {
+                voiceButton.classList.add('recording');
+            } else {
+                voiceButton.classList.remove('recording');
+            }
         }
-        lastTouchEnd = now;
-    }, false);
-</script>
+
+        function updateStatus(message, type = 'normal') {
+            const statusText = document.getElementById('statusText');
+            statusText.textContent = message;
+            
+            statusText.classList.remove('listening', 'processing', 'success', 'error', 'warning', 'info');
+            
+            if (type !== 'normal') {
+                statusText.classList.add(type);
+            }
+        }
+
+        function updateMemoryStatus(type, text) {
+            const memoryStatus = document.getElementById('memoryStatus');
+            const memoryStatusText = document.getElementById('memoryStatusText');
+            
+            if (memoryStatus && memoryStatusText) {
+                memoryStatus.className = `memory-status ${type}`;
+                memoryStatusText.textContent = text;
+            }
+        }
+
+        function handleResponseAreaClick(event) {
+            event.stopPropagation();
+            const responseArea = document.getElementById('responseArea');
+            
+            if (!responseAreaPinned) {
+                responseAreaPinned = true;
+                responseArea.classList.add('pinned');
+                
+                if (unpinTimeout) {
+                    clearTimeout(unpinTimeout);
+                }
+                
+                unpinTimeout = setTimeout(() => {
+                    unpinResponseArea();
+                }, 5000);
+            }
+        }
+
+        function unpinResponseArea() {
+            const responseArea = document.getElementById('responseArea');
+            responseAreaPinned = false;
+            responseArea.classList.remove('pinned');
+            
+            if (unpinTimeout) {
+                clearTimeout(unpinTimeout);
+                unpinTimeout = null;
+            }
+        }
+
+        function pinResponseArea() {
+            const responseArea = document.getElementById('responseArea');
+            responseAreaPinned = true;
+            responseArea.classList.add('pinned');
+            
+            if (unpinTimeout) {
+                clearTimeout(unpinTimeout);
+            }
+            unpinTimeout = setTimeout(() => {
+                unpinResponseArea();
+            }, 5000);
+        }
+
+        // Profile dropdown functions
+        function toggleProfileDropdown() {
+            const dropdown = document.getElementById('profileDropdown');
+            const isVisible = dropdown.classList.contains('visible');
+            
+            if (isVisible) {
+                dropdown.classList.remove('visible');
+            } else {
+                dropdown.classList.add('visible');
+            }
+        }
+
+        // Waveform animation
+        function initializeWaveform() {
+            for (let i = 0; i < numPoints; i++) {
+                waveformPoints.push({
+                    x: (i / (numPoints - 1)) * 800,
+                    y: 150 + Math.sin(i * 0.3) * 10,
+                    amplitude: 10,
+                    frequency: 0.3 + Math.random() * 0.2
+                });
+            }
+        }
+
+        function startWaveformAnimation() {
+            function animate() {
+                animationTime += 0.03;
+                
+                waveformPoints.forEach((point, index) => {
+                    const baseAmplitude = isRecording ? 30 + Math.random() * 40 : 10;
+                    const wave = Math.sin(animationTime * 2 + index * point.frequency) * baseAmplitude;
+                    point.y = 150 + wave;
+                });
+
+                const pathData = createSmoothPath(waveformPoints);
+                const fillData = createSmoothPath(waveformPoints) + ' L 800 300 L 0 300 Z';
+                
+                document.getElementById('waveformPath').setAttribute('d', pathData);
+                document.getElementById('waveformFill').setAttribute('d', fillData);
+                
+                waveformAnimationId = requestAnimationFrame(animate);
+            }
+            animate();
+        }
+
+        function createSmoothPath(points) {
+            if (points.length < 2) return '';
+            
+            let path = `M ${points[0].x} ${points[0].y}`;
+            
+            for (let i = 1; i < points.length - 1; i++) {
+                const currentPoint = points[i];
+                const nextPoint = points[i + 1];
+                const controlX = (currentPoint.x + nextPoint.x) / 2;
+                
+                path += ` Q ${currentPoint.x} ${currentPoint.y} ${controlX} ${(currentPoint.y + nextPoint.y) / 2}`;
+            }
+            
+            const lastPoint = points[points.length - 1];
+            path += ` Q ${lastPoint.x} ${lastPoint.y} ${lastPoint.x} ${lastPoint.y}`;
+            
+            return path;
+        }
+
+        // Test backend
+        async function testBackend() {
+            updateStatus('Testing backend connection...', 'processing');
+            await checkBackendStatus();
+        }
+
+        // Menu toggle placeholder
+        function toggleMenu() {
+            updateStatus('Menu functionality coming soon...', 'info');
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            if (event.key === ' ' && !event.target.matches('input, textarea')) {
+                event.preventDefault();
+                toggleRecording();
+            }
+        });
+
+        // Click outside handler
+        document.addEventListener('click', function(event) {
+            const responseArea = document.getElementById('responseArea');
+            const clickedInsideResponse = responseArea.contains(event.target);
+            
+            if (!clickedInsideResponse && responseAreaPinned) {
+                unpinResponseArea();
+            }
+            
+            const profileDropdown = document.getElementById('profileDropdown');
+            const profileButton = event.target.closest('.profile-button');
+            
+            if (!profileButton && !event.target.closest('.dropdown-menu')) {
+                profileDropdown.classList.remove('visible');
+            }
+        });
+    </script>
 </body>
-</html></parameter>
-</invoke>
-</artifacts>
+</html>
