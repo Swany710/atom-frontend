@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atom - Voice Test (Fixed)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0a0a;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background: #1a1a1a;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 255, 157, 0.1);
+            border: 1px solid #333;
+        }
+
+        h1 {
+            color: #00ff9d;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .voice-button {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(45deg, #00ff9d, #00bcd4);
+            color: white;
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px auto;
+            box-shadow: 0 4px 15px rgba(0, 255, 157, 0.3);
+        }
+
+        .voice-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 8px 25px rgba(0, 255, 157, 0.5);
+        }
+
+        .voice-button.recording {
+            background: linear-gradient(45deg, #ff4444, #ff6b6b);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+
+        .status.success { background: rgba(0, 255, 157, 0.1); color: #00ff9d; }
+        .status.error { background: rgba(255, 68, 68, 0.1); color: #ff4444; }
+        .status.processing { background: rgba(255, 193, 7, 0.1); color: #ffc107; }
+        .status.listening { background: rgba(0, 188, 212, 0.1); color: #00bcd4; }
+
+        .conversation {
+            background: #2a2a2a;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .message {
+            margin: 15px 0;
+            padding: 12px 18px;
+            border-radius: 18px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+        .message.user {
+            background: #00ff9d;
+            color: #000;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .message.assistant {
+            background: #333;
+            color: #fff;
+            margin-right: auto;
+        }
+
+        .test-button {
+            background: #00ff9d;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .test-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 255, 157, 0.3);
+        }
+
+        .endpoint-test {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .debug-info {
+            background: #333;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 0.9em;
+            color: #ccc;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Atom Voice Test (Fixed)</h1>
+        
+        <!-- Endpoint Testing -->
+        <div class="endpoint-test">
+            <h3>🔍 Backend Connection Test</h3>
+            <button class="test-button" onclick="testEndpoints()">Test All Endpoints</button>
+            <div id="endpoint-results" class="debug-info"></div>
+        </div>
+
+        <!-- Voice Interface -->
+        <button id="voiceBtn" class="voice-button" onclick="toggleRecording()">
+            🎤 Start
+        </button>
+
+        <div id="status" class="status">Ready to test voice commands</div>
+
+        <!-- Conversation Display -->
+        <div id="conversation" class="conversation"></div>
+
+        <!-- Debug Information -->
+        <div id="debug" class="debug-info"></div>
+    </div>
+
+    <script>
+        // Backend Configuration - Fixed endpoint paths
+        const BACKEND_URL = 'https://atom-backend-production-8a1e.up.railway.app';
+        
+        // Voice Recording Variables
+        let isRecording = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
+
+        // UI Elements
+        const voiceBtn = document.getElementById('voiceBtn');
+        const statusDiv = document.getElementById('status');
+        const conversationDiv = document.getElementById('conversation');
+        const debugDiv = document.getElementById('debug');
+        const endpointResults = document.getElementById('endpoint-results');
+
+        // Update Status Function
+        function updateStatus(message, type = 'info') {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            debugLog(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        // Debug Log Function
+        function debugLog(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            debugDiv.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            debugDiv.scrollTop = debugDiv.scrollHeight;
+        }
+
+        // Add Message to Conversation
+        function addMessage(sender, message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            messageDiv.textContent = message;
+            conversationDiv.appendChild(messageDiv);
+            conversationDiv.scrollTop = conversationDiv.scrollHeight;
+        }
+
+        // Test All Backend Endpoints
+        async function testEndpoints() {
+            endpointResults.innerHTML = '<div>🔍 Testing all endpoints...</div>';
+            
+            const endpoints = [
+                { method: 'GET', path: '/api/v1/ai/health', name: 'Health Check' },
+                { method: 'GET', path: '/api/v1/ai/status', name: 'Status Check' },
+                { method: 'POST', path: '/api/v1/ai/text-command', name: 'Text Command', body: { message: 'Hello test', userId: 'test-user' } }
+            ];
+
+            let allWorking = true;
+            
+            for (const endpoint of endpoints) {
+                try {
+                    debugLog(`Testing ${endpoint.name}...`);
+                    
+                    const response = await fetch(`${BACKEND_URL}${endpoint.path}`, {
+                        method: endpoint.method,
+                        headers: endpoint.method === 'POST' ? {
+                            'Content-Type': 'application/json',
+                        } : {},
+                        body: endpoint.body ? JSON.stringify(endpoint.body) : undefined
+                    });
+
+                    const statusIcon = response.ok ? '✅' : '❌';
+                    endpointResults.innerHTML += `
+                        <div>${statusIcon} ${endpoint.name}: ${response.status} ${response.statusText}</div>
+                    `;
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        debugLog(`${endpoint.name} success: ${JSON.stringify(data).substring(0, 100)}`);
+                    } else {
+                        allWorking = false;
+                        const errorText = await response.text();
+                        debugLog(`${endpoint.name} failed: ${response.status} - ${errorText}`);
+                    }
+                } catch (error) {
+                    allWorking = false;
+                    endpointResults.innerHTML += `
+                        <div>❌ ${endpoint.name}: Network Error - ${error.message}</div>
+                    `;
+                    debugLog(`${endpoint.name} network error: ${error.message}`);
+                }
+            }
+            
+            if (allWorking) {
+                updateStatus('All endpoints working! Voice commands should work.', 'success');
+            } else {
+                updateStatus('Some endpoints failed. Check debug log.', 'error');
+            }
+        }
+
+        // Voice Recording Functions
+        async function toggleRecording() {
+            if (!isRecording) {
+                await startRecording();
+            } else {
+                stopRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                updateStatus('Requesting microphone access...', 'processing');
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 44100
+                    }
+                });
+
+                debugLog('Microphone access granted');
+                
+                audioChunks = [];
+                
+                // Try different mime types for compatibility
+                let mimeType = 'audio/webm;codecs=opus';
+                if (!MediaRecorder.isTypeSupported(mimeType)) {
+                    mimeType = 'audio/webm';
+                    if (!MediaRecorder.isTypeSupported(mimeType)) {
+                        mimeType = 'audio/mp4';
+                        if (!MediaRecorder.isTypeSupported(mimeType)) {
+                            mimeType = ''; // Let browser choose
+                        }
+                    }
+                }
+
+                const options = mimeType ? { mimeType } : {};
+                mediaRecorder = new MediaRecorder(stream, options);
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                        debugLog(`Audio chunk: ${event.data.size} bytes`);
+                    }
+                };
+                
+                mediaRecorder.onstop = processAudioRecording;
+                
+                mediaRecorder.start();
+                isRecording = true;
+                
+                voiceBtn.textContent = '⏹️ Stop';
+                voiceBtn.classList.add('recording');
+                updateStatus('🎤 Recording... Speak now!', 'listening');
+                
+                debugLog(`Recording started with mime type: ${mimeType || 'auto'}`);
+                
+            } catch (error) {
+                updateStatus(`Microphone error: ${error.message}`, 'error');
+                debugLog(`Recording error: ${error.message}`);
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            
+            if (mediaRecorder?.stream) {
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+            
+            isRecording = false;
+            voiceBtn.textContent = '🎤 Start';
+            voiceBtn.classList.remove('recording');
+            updateStatus('Processing audio...', 'processing');
+            
+            debugLog('Recording stopped');
+        }
+
+        // Process Audio Recording
+        async function processAudioRecording() {
+            try {
+                debugLog('Processing audio recording...');
+                
+                if (audioChunks.length === 0) {
+                    throw new Error('No audio data recorded');
+                }
+
+                const audioBlob = new Blob(audioChunks, { 
+                    type: audioChunks[0].type || 'audio/webm' 
+                });
+                
+                debugLog(`Audio blob created: ${audioBlob.size} bytes, type: ${audioBlob.type}`);
+                
+                if (audioBlob.size === 0) {
+                    throw new Error('Audio recording is empty');
+                }
+                
+                updateStatus('Sending to backend...', 'processing');
+                
+                // Create FormData for voice upload - FIXED endpoint path
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'recording.webm');
+                formData.append('userId', 'test-user');
+                
+                debugLog('Sending to /api/v1/ai/voice-command endpoint...');
+                
+                const response = await fetch(`${BACKEND_URL}/api/v1/ai/voice-command1`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                debugLog(`Response: ${response.status} ${response.statusText}`);
+
+                if (response.ok) {
+                    const result = await response.json();
+                    debugLog(`Success: ${JSON.stringify(result)}`);
+                    
+                    // Display results
+                    if (result.transcription) {
+                        addMessage('user', `🎤 "${result.transcription}"`);
+                    }
+                    if (result.message) {
+                        addMessage('assistant', result.message);
+                    }
+                    
+                    updateStatus('Voice command processed successfully!', 'success');
+                } else {
+                    const errorText = await response.text();
+                    throw new Error(`${response.status}: ${errorText}`);
+                }
+                
+            } catch (error) {
+                updateStatus(`Voice processing failed: ${error.message}`, 'error');
+                debugLog(`Processing error: ${error.message}`);
+                addMessage('assistant', `Error: ${error.message}`);
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateStatus('Fixed voice test interface loaded', 'success');
+            debugLog('Page loaded with corrected endpoint paths');
+            
+            // Auto-test endpoints on load
+            setTimeout(testEndpoints, 1000);
+        });
+    </script>
+</body>
+</html>

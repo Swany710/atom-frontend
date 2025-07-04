@@ -888,7 +888,7 @@
                 
                 updateStatus('Transcribing and processing...', 'processing');
                 
-                // Create FormData for voice upload
+                // Create FormData for voice upload - FIXED endpoint path
                 const formData = new FormData();
                 formData.append('audio', audioBlob, 'recording.webm');
                 formData.append('userId', 'default-user');
