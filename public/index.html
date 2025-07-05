@@ -816,18 +816,19 @@
                 
                 audioChunks = [];
                 
-                // Try different mime types for better compatibility
-                let mimeType = 'audio/webm;codecs=opus';
+                // Prioritize MP4 format for better Whisper compatibility
+                let mimeType = 'audio/mp4';
                 if (!MediaRecorder.isTypeSupported(mimeType)) {
-                    mimeType = 'audio/webm';
+                    mimeType = 'audio/webm;codecs=opus';
                     if (!MediaRecorder.isTypeSupported(mimeType)) {
-                        mimeType = 'audio/mp4';
+                        mimeType = 'audio/webm';
                         if (!MediaRecorder.isTypeSupported(mimeType)) {
                             mimeType = ''; // Let browser choose
                         }
                     }
                 }
                 
+                console.log('📱 Using audio format:', mimeType);
                 const options = mimeType ? { mimeType } : {};
                 mediaRecorder = new MediaRecorder(stream, options);
                 
