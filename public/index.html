@@ -878,7 +878,7 @@
             }
         }
 
-        // FIXED: Better startRecording function with error handling
+        // UPDATED: MP4-focused startRecording function
         async function startRecording() {
             try {
                 console.log('🎤 Starting recording...');
@@ -887,7 +887,7 @@
                 if (isRecording) {
                     console.log('Already recording, stopping first...');
                     stopRecording();
-                    await new Promise(resolve => setTimeout(resolve, 100)); // Small delay
+                    await new Promise(resolve => setTimeout(resolve, 100));
                 }
                 
                 updateStatus('Requesting microphone access...', 'processing');
@@ -896,22 +896,19 @@
                     audio: {
                         echoCancellation: true,
                         noiseSuppression: true,
-                        sampleRate: 16000, // Better for speech
+                        sampleRate: 44100, // Good quality for MP4
                         channelCount: 1    // Mono
                     }
                 });
                 
                 audioChunks = [];
                 
-                // CRITICAL FIX: Use consistent audio format
-                let mimeType = 'audio/webm;codecs=opus';
+                // FORCE MP4 FORMAT for compatibility with backend
+                let mimeType = 'audio/mp3';
                 
-                // Test format support in order of preference
+                // Only fallback if MP4 is not supported
                 if (!MediaRecorder.isTypeSupported(mimeType)) {
                     mimeType = 'audio/webm';
-                }
-                if (!MediaRecorder.isTypeSupported(mimeType)) {
-                    mimeType = 'audio/mp4';
                 }
                 if (!MediaRecorder.isTypeSupported(mimeType)) {
                     mimeType = 'audio/wav';
@@ -959,7 +956,7 @@
             }
         }
 
-        // FIXED: Better processAudioRecording function
+        // UPDATED: MP4-focused processAudioRecording function
         async function processAudioRecording() {
             try {
                 console.log('Processing audio recording...');
@@ -969,15 +966,14 @@
                     throw new Error('No audio data recorded');
                 }
 
-                // CRITICAL FIX: Create blob with correct, consistent format
+                // FORCE MP4 FORMAT to match backend
                 const audioBlob = new Blob(audioChunks, { 
-                    type: audioChunks[0].type || 'audio/webm'
+                    type: 'audio/mp3'
                 });
                 
                 console.log('Audio blob created:');
                 console.log('  - Size:', audioBlob.size, 'bytes');
                 console.log('  - Type:', audioBlob.type);
-                console.log('  - Chunk types:', audioChunks.map(chunk => chunk.type));
                 
                 if (audioBlob.size === 0) {
                     throw new Error('Audio recording is empty');
@@ -989,25 +985,12 @@
                 
                 updateStatus('Transcribing and processing...', 'processing');
                 
-                // CRITICAL FIX: Create FormData with consistent filename and content type
+                // SIMPLIFIED: Always use MP4 format
                 const formData = new FormData();
-                
-                // Determine correct filename based on actual blob type
-                let filename = 'audio.webm';
-                if (audioBlob.type.includes('mp4')) {
-                    filename = 'audio.mp4';
-                } else if (audioBlob.type.includes('webm')) {
-                    filename = 'audio.webm';
-                } else if (audioBlob.type.includes('wav')) {
-                    filename = 'audio.wav';
-                } else if (audioBlob.type.includes('ogg')) {
-                    filename = 'audio.ogg';
-                }
-                
-                console.log('Sending file as:', filename, 'with type:', audioBlob.type);
-                
-                formData.append('audio', audioBlob, filename);
+                formData.append('audio', audioBlob, 'audio.mp3');
                 formData.append('userId', 'default-user');
+                
+                console.log('Sending file as: audio.mp3 with type: audio/mp3');
                 
                 const response = await fetch(`${apiBaseUrl}/ai/voice-command1`, {
                     method: 'POST',
