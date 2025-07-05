@@ -801,138 +801,154 @@
                 stopRecording();
             }
         }
+        // FRONTEND FIX for public/index.html
+// Replace the startRecording and processAudioRecording functions
 
-        async function startRecording() {
-            try {
-                updateStatus('Requesting microphone access...', 'processing');
-                
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        sampleRate: 44100
-                    }
-                });
-                
-                audioChunks = [];
-                
-                // Prioritize MP4 format for better Whisper compatibility
-                let mimeType = 'audio/mp4';
-                if (!MediaRecorder.isTypeSupported(mimeType)) {
-                    mimeType = 'audio/webm;codecs=opus';
-                    if (!MediaRecorder.isTypeSupported(mimeType)) {
-                        mimeType = 'audio/webm';
-                        if (!MediaRecorder.isTypeSupported(mimeType)) {
-                            mimeType = ''; // Let browser choose
-                        }
-                    }
-                }
-                
-                console.log('📱 Using audio format:', mimeType);
-                const options = mimeType ? { mimeType } : {};
-                mediaRecorder = new MediaRecorder(stream, options);
-                
-                mediaRecorder.ondataavailable = (event) => {
-                    console.log('Audio chunk received, size:', event.data.size);
-                    if (event.data.size > 0) {
-                        audioChunks.push(event.data);
-                    }
-                };
-                
-                mediaRecorder.onstop = processAudioRecording;
-                
-                mediaRecorder.start();
-                isRecording = true;
-                
-                updateRecordingUI(true);
-                updateStatus('🎤 Listening... Speak now!', 'listening');
-                
-            } catch (error) {
-                console.error('Error starting recording:', error);
-                updateStatus('Microphone access denied. Please allow microphone access.', 'error');
+async function startRecording() {
+    try {
+        updateStatus('Requesting microphone access...', 'processing');
+        
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                sampleRate: 16000, // Optimal for speech
+                channelCount: 1    // Mono
             }
+        });
+        
+        audioChunks = [];
+        
+        // CRITICAL FIX: Use consistent audio format
+        let mimeType = 'audio/webm;codecs=opus';
+        
+        // Test format support in order of preference
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = 'audio/webm';
+        }
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = 'audio/mp4';
+        }
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = 'audio/wav';
+        }
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = ''; // Let browser decide
+        }
+        
+        console.log('Selected audio format:', mimeType);
+        
+        const options = mimeType ? { mimeType } : {};
+        mediaRecorder = new MediaRecorder(stream, options);
+        
+        mediaRecorder.ondataavailable = (event) => {
+            console.log('Audio chunk received, size:', event.data.size, 'type:', event.data.type);
+            if (event.data.size > 0) {
+                audioChunks.push(event.data);
+            }
+        };
+        
+        mediaRecorder.onstop = processAudioRecording;
+        
+        mediaRecorder.start();
+        isRecording = true;
+        
+        updateRecordingUI(true);
+        updateStatus('🎤 Listening... Speak now!', 'listening');
+        
+    } catch (error) {
+        console.error('Error starting recording:', error);
+        updateStatus('Microphone access denied. Please allow microphone access.', 'error');
+    }
+}
+
+async function processAudioRecording() {
+    try {
+        console.log('Processing audio recording...');
+        console.log('Audio chunks:', audioChunks.length);
+        
+        if (audioChunks.length === 0) {
+            throw new Error('No audio data recorded');
         }
 
-        function stopRecording() {
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.stop();
-            }
+        // CRITICAL FIX: Create blob with correct, consistent format
+        const audioBlob = new Blob(audioChunks, { 
+            type: audioChunks[0].type || 'audio/webm'
+        });
+        
+        console.log('Audio blob created:');
+        console.log('  - Size:', audioBlob.size, 'bytes');
+        console.log('  - Type:', audioBlob.type);
+        console.log('  - Chunk types:', audioChunks.map(chunk => chunk.type));
+        
+        if (audioBlob.size === 0) {
+            throw new Error('Audio recording is empty');
+        }
+        
+        if (audioBlob.size < 1000) {
+            throw new Error('Audio recording is too short - please speak for at least 1 second');
+        }
+        
+        updateStatus('Transcribing and processing...', 'processing');
+        
+        // CRITICAL FIX: Create FormData with consistent filename and content type
+        const formData = new FormData();
+        
+        // Determine correct filename based on actual blob type
+        let filename = 'audio.webm';
+        if (audioBlob.type.includes('mp4')) {
+            filename = 'audio.mp4';
+        } else if (audioBlob.type.includes('webm')) {
+            filename = 'audio.webm';
+        } else if (audioBlob.type.includes('wav')) {
+            filename = 'audio.wav';
+        } else if (audioBlob.type.includes('ogg')) {
+            filename = 'audio.ogg';
+        }
+        
+        console.log('Sending file as:', filename, 'with type:', audioBlob.type);
+        
+        formData.append('audio', audioBlob, filename);
+        formData.append('userId', 'default-user');
+        
+        const response = await fetch(`${apiBaseUrl}/ai/voice-command1`, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Voice API error:', response.status, errorText);
+            throw new Error(`Voice API error: ${response.status} - ${errorText}`);
+        }
+
+        const result = await response.json();
+        console.log('Voice processing result:', result);
+        
+        if (result.mode === 'openai' && result.transcription) {
+            // Success - add to conversation
+            addMessageToConversation('user', `🎤 "${result.transcription}"`);
+            addMessageToConversation('assistant', result.message);
+            updateStatus('Voice command processed successfully!', 'success');
+            pinResponseArea();
             
-            if (mediaRecorder?.stream) {
-                mediaRecorder.stream.getTracks().forEach(track => track.stop());
-            }
-            
-            isRecording = false;
-            updateRecordingUI(false);
-            updateStatus('Processing your voice command...', 'processing');
+        } else if (result.mode === 'error') {
+            throw new Error(result.message || 'Voice processing failed');
+        } else {
+            // Demo mode
+            addMessageToConversation('user', `🎤 "${result.transcription || 'Voice input'}"`);
+            addMessageToConversation('assistant', result.message);
+            updateStatus('Voice processed (limited mode)', 'warning');
+            pinResponseArea();
         }
-
-        // Process voice recording
-        async function processAudioRecording() {
-            try {
-                console.log('Processing audio recording...');
-                console.log('Audio chunks:', audioChunks.length);
-                
-                if (audioChunks.length === 0) {
-                    throw new Error('No audio data recorded');
-                }
-
-                const audioBlob = new Blob(audioChunks, { 
-                    type: audioChunks[0].type || 'audio/webm' 
-                });
-                
-                console.log('Audio blob size:', audioBlob.size);
-                
-                if (audioBlob.size === 0) {
-                    throw new Error('Audio recording is empty');
-                }
-                
-                updateStatus('Transcribing and processing...', 'processing');
-                
-                // Create FormData for voice upload - FIXED endpoint path
-                const formData = new FormData();
-                formData.append('audio', audioBlob, 'recording.webm');
-                formData.append('userId', 'default-user');
-                
-                const response = await fetch(`${apiBaseUrl}/ai/voice-command1`, {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Voice API error: ${response.status} - ${errorText}`);
-                }
-
-                const result = await response.json();
-                console.log('Voice processing result:', result);
-                
-                if (result.mode === 'openai' && result.transcription) {
-                    // Add user voice message (transcription) to conversation
-                    addMessageToConversation('user', `🎤 "${result.transcription}"`);
-                    
-                    // Add AI response to conversation
-                    addMessageToConversation('assistant', result.message);
-                    
-                    updateStatus('Voice command processed successfully!', 'success');
-                    pinResponseArea();
-                } else if (result.mode === 'error') {
-                    throw new Error(result.error || 'Voice processing failed');
-                } else {
-                    // Fallback for demo mode
-                    addMessageToConversation('user', '🎤 [Voice command]');
-                    addMessageToConversation('assistant', result.message);
-                    updateStatus('Voice processed (demo mode)', 'warning');
-                    pinResponseArea();
-                }
-                
-            } catch (error) {
-                console.error('Error processing audio:', error);
-                updateStatus('Voice processing error: ' + error.message, 'error');
-                addMessageToConversation('assistant', `Sorry, I had trouble with your voice command: ${error.message}`);
-                pinResponseArea();
-            }
-        }
+        
+    } catch (error) {
+        console.error('Error processing voice:', error);
+        updateStatus('Voice processing failed: ' + error.message, 'error');
+        addMessageToConversation('assistant', `Sorry, I had trouble with your voice command: ${error.message}`);
+        pinResponseArea();
+    }
+}
 
         // Add message to conversation
         function addMessageToConversation(role, content) {
