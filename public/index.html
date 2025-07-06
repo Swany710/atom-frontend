@@ -694,6 +694,7 @@
         let responseAreaPinned = false;
         let unpinTimeout = null;
         let conversationMessages = [];
+        let conversationId = null;
         
         // Backend API Configuration
         const apiBaseUrl = 'https://atom-backend-production-8a1e.up.railway.app/api/v1';
@@ -706,12 +707,9 @@
         // Initialize Application
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🚀 Initializing Atom Personal AI Assistant...');
-            
             initializeWaveform();
             startWaveformAnimation();
             setupTextInput();
-            
-            // Check backend status
             await checkBackendStatus();
         });
 
@@ -750,19 +748,19 @@
         async function processTextCommand(text) {
             try {
                 updateStatus('Processing with AI...', 'processing');
-                
-                // Add user message to conversation
                 addMessageToConversation('user', text);
-                
-                const response = await fetch(`${apiBaseUrl}/ai/text-command1`, {
+
+                const payload = {
+                    message: text,
+                    userId: 'default-user',
+                    // only include if not null (first call will be null, backend will assign)
+                    ...(conversationId && { conversationId })
+                };
+
+                const response = await fetch(`${apiBaseUrl}/ai/text`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        message: text,
-                        userId: 'default-user'
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
                 });
 
                 if (!response.ok) {
@@ -771,20 +769,16 @@
 
                 const result = await response.json();
                 console.log('AI response:', result);
-                
-                if (result.mode === 'openai') {
-                    // Add AI response to conversation
-                    addMessageToConversation('assistant', result.message);
-                    updateStatus('Response generated successfully!', 'success');
-                    pinResponseArea();
-                } else if (result.mode === 'error') {
-                    throw new Error(result.error || 'AI processing failed');
-                } else {
-                    addMessageToConversation('assistant', result.message);
-                    updateStatus('Response generated (demo mode)', 'warning');
-                    pinResponseArea();
+
+                // capture/keep the conversationId for subsequent calls
+                if (result.conversationId) {
+                    conversationId = result.conversationId;
                 }
-                
+
+                // display assistant message
+                addMessageToConversation('assistant', result.message);
+                updateStatus('Response generated successfully!', 'success');
+                pinResponseArea();
             } catch (error) {
                 console.error('Error processing text:', error);
                 updateStatus('Error: ' + error.message, 'error');
@@ -960,69 +954,41 @@
         async function processAudioRecording() {
             try {
                 console.log('Processing audio recording...');
-                console.log('Audio chunks:', audioChunks.length);
-                
-                if (audioChunks.length === 0) {
-                    throw new Error('No audio data recorded');
-                }
+                if (audioChunks.length === 0) throw new Error('No audio data recorded');
 
-                // FORCE MP4 FORMAT to match backend
-                const audioBlob = new Blob(audioChunks, { 
-                    type: 'audio/mp3'
-                });
-                
-                console.log('Audio blob created:');
-                console.log('  - Size:', audioBlob.size, 'bytes');
-                console.log('  - Type:', audioBlob.type);
-                
-                if (audioBlob.size === 0) {
-                    throw new Error('Audio recording is empty');
-                }
-                
-                if (audioBlob.size < 1000) {
-                    throw new Error('Audio recording is too short - please speak for at least 1 second');
-                }
-                
+                const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
+                if (audioBlob.size < 1000) throw new Error('Speak at least 1 second');
+
                 updateStatus('Transcribing and processing...', 'processing');
-                
-                // SIMPLIFIED: Always use MP4 format
+
                 const formData = new FormData();
                 formData.append('audio', audioBlob, 'audio.mp3');
                 formData.append('userId', 'default-user');
-                
-                console.log('Sending file as: audio.mp3 with type: audio/mp3');
-                
-                const response = await fetch(`${apiBaseUrl}/ai/voice-command1`, {
+                if (conversationId) {
+                    formData.append('conversationId', conversationId);
+                }
+
+                const response = await fetch(`${apiBaseUrl}/ai/voice`, {
                     method: 'POST',
                     body: formData
                 });
 
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('Voice API error:', response.status, errorText);
                     throw new Error(`Voice API error: ${response.status} - ${errorText}`);
                 }
 
                 const result = await response.json();
                 console.log('Voice processing result:', result);
-                
-                if (result.mode === 'openai' && result.transcription) {
-                    // Success - add to conversation
-                    addMessageToConversation('user', `🎤 "${result.transcription}"`);
-                    addMessageToConversation('assistant', result.message);
-                    updateStatus('Voice command processed successfully!', 'success');
-                    pinResponseArea();
-                    
-                } else if (result.mode === 'error') {
-                    throw new Error(result.message || 'Voice processing failed');
-                } else {
-                    // Demo mode
-                    addMessageToConversation('user', `🎤 "${result.transcription || 'Voice input'}"`);
-                    addMessageToConversation('assistant', result.message);
-                    updateStatus('Voice processed (limited mode)', 'warning');
-                    pinResponseArea();
+
+                if (result.conversationId) {
+                    conversationId = result.conversationId;
                 }
-                
+
+                addMessageToConversation('user', `🎤 "${result.transcription}"`);
+                addMessageToConversation('assistant', result.message);
+                updateStatus('Voice command processed successfully!', 'success');
+                pinResponseArea();
             } catch (error) {
                 console.error('Error processing voice:', error);
                 updateStatus('Voice processing failed: ' + error.message, 'error');
@@ -1030,6 +996,7 @@
                 pinResponseArea();
             }
         }
+
 
         // Add message to conversation
         function addMessageToConversation(role, content) {
@@ -1141,10 +1108,10 @@
         // Clear conversation
         function clearConversation() {
             conversationMessages = [];
+            conversationId = null;     // drop the session on the front end
             updateConversationDisplay();
             updateStatus('Conversation cleared. Ready for new commands!', 'info');
         }
-
         // UI utility functions
         function updateRecordingUI(recording) {
             const voiceButton = document.getElementById('voiceButton');
