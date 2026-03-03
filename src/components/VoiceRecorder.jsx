@@ -1,65 +1,63 @@
-
 import React, { useState } from 'react';
+
+// NOTE: The main app UI lives in public/index.html.
+// This file is kept as a reference component but is not currently used.
 
 function VoiceRecorder() {
     const [transcription, setTranscription] = useState('');
     const [recording, setRecording] = useState(false);
     const [mediaRecorder, setMediaRecorder] = useState(null);
-    const [audioChunks, setAudioChunks] = useState([]);
 
-  const startRecording = async () => {
+    const startRecording = async () => {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const recorder = new MediaRecorder(stream);
         setMediaRecorder(recorder);
         const chunks = [];
 
         recorder.ondataavailable = event => chunks.push(event.data);
-        recorder.onstop = () => {
-                const audioBlob = new Blob(chunks, { type: 'audio/mp3' });
-                const formData = new FormData();
-                formData.append('file', audioBlob, 'voice.mp3');
+        recorder.onstop = async () => {
+            const audioBlob = new Blob(chunks, { type: 'audio/mp3' });
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'audio.mp3');
+            formData.append('userId', 'default-user');
 
-                fetch('https://atom-backend-production-8a1e.up.railway.app/voice/voice-command', {
-                          method: 'POST',
-                          body: formData,
-                })
-                .then(res => res.json())
-                .then(data => {
-                          const text = data?.result?.text || 'No transcription received.';
-                          setTranscription(text);
-                })
-                .catch(err => {
-                          console.error('Error:', err);
-                          setTranscription('Error receiving transcription.');
+            try {
+                const apiBase = process.env.REACT_APP_API_BASE_URL || 'https://atom-backend-production-8a1e.up.railway.app/api/v1';
+                const res = await fetch(`${apiBase}/ai/voice`, {
+                    method: 'POST',
+                    body: formData,
                 });
-
-                setAudioChunks([]);
+                const data = await res.json();
+                setTranscription(data?.transcription || data?.message || 'No response received.');
+            } catch (err) {
+                console.error('Error:', err);
+                setTranscription('Error receiving response.');
+            }
         };
 
         recorder.start();
-        setAudioChunks(chunks);
         setRecording(true);
-  };
+    };
 
-  const stopRecording = () => {
+    const stopRecording = () => {
         mediaRecorder.stop();
         setRecording(false);
-  };
+    };
 
-  return (
+    return (
         <div className="voice-recorder">
-              <button onClick={recording ? stopRecording : startRecording}>
+            <button onClick={recording ? stopRecording : startRecording}>
                 {recording ? 'Stop Recording' : 'Start Recording'}
-              </button>button>
-        
-          {transcription && (
-                  <div className="transcription-output">
-                            <h3>🗣️ Transcription Result:</h3>h3>
-                            <p>{transcription}</p>p>
-                  </div>div>
-              )}
-        </div>div>
-      );
+            </button>
+
+            {transcription && (
+                <div className="transcription-output">
+                    <h3>🗣️ Atom Response:</h3>
+                    <p>{transcription}</p>
+                </div>
+            )}
+        </div>
+    );
 }
 
-export default VoiceRecorder;</div>
+export default VoiceRecorder;

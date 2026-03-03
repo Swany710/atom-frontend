@@ -696,8 +696,24 @@
         let conversationMessages = [];
         let conversationId = null;
         
-        // Backend API Configuration
-        const apiBaseUrl = 'https://atom-backend-production-8a1e.up.railway.app/api/v1';
+        // Backend API Configuration — loaded at runtime from server env vars
+        let apiBaseUrl = 'https://atom-backend-production-8a1e.up.railway.app/api/v1';
+        let _apiKey = '';
+
+        async function loadConfig() {
+            try {
+                const cfg = await fetch('/api/config').then(r => r.json());
+                if (cfg.apiBaseUrl) apiBaseUrl = cfg.apiBaseUrl;
+                if (cfg.apiKey)     _apiKey     = cfg.apiKey;
+            } catch (e) {
+                console.warn('Could not load /api/config — using defaults', e);
+            }
+        }
+
+        // Returns Authorization header if an API key is configured
+        function authHeaders() {
+            return _apiKey ? { 'Authorization': `Bearer ${_apiKey}` } : {};
+        }
         
         // Waveform animation variables
         let waveformPoints = [];
@@ -707,6 +723,7 @@
         // Initialize Application
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🚀 Initializing Atom Personal AI Assistant...');
+            await loadConfig();
             initializeWaveform();
             startWaveformAnimation();
             setupTextInput();
@@ -759,7 +776,7 @@
 
                 const response = await fetch(`${apiBaseUrl}/ai/text`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(payload)
                 });
 
@@ -970,6 +987,7 @@
 
                 const response = await fetch(`${apiBaseUrl}/ai/voice`, {
                     method: 'POST',
+                    headers: { ...authHeaders() },
                     body: formData
                 });
 
@@ -1058,7 +1076,7 @@
             // Add conversation stats
             conversationHtml += `
                 <div class="conversation-stats">
-                    <small>${conversationMessages.length} messages • OpenAI GPT-3.5 Turbo</small>
+                    <small>${conversationMessages.length} messages • Claude (Anthropic)</small>
                 </div>
             `;
             
