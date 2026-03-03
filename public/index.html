@@ -585,6 +585,10 @@
                         👤
                     </div>
                     <div class="dropdown-menu" id="profileDropdown">
+                        <div class="dropdown-item" onclick="openSettings()">
+                            <span>⚙️</span>
+                            <span>Settings</span>
+                        </div>
                         <div class="dropdown-item" onclick="testAI()">
                             <span>🧠</span>
                             <span>Test AI</span>
@@ -1323,6 +1327,273 @@
                 profileDropdown.classList.remove('visible');
             }
         });
+        // ══════════════════════════════════════════════════════════════════
+        // SETTINGS PANEL
+        // ══════════════════════════════════════════════════════════════════
+
+        async function openSettings() {
+            toggleProfileDropdown();
+            const modal = document.getElementById('settingsModal');
+            modal.classList.add('visible');
+            await refreshSettingsStatus();
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('visible');
+        }
+
+        async function refreshSettingsStatus() {
+            const statusEl  = document.getElementById('gmailStatusBadge');
+            const emailEl   = document.getElementById('gmailEmailDisplay');
+            const connectBtn = document.getElementById('gmailConnectBtn');
+            const setupNote  = document.getElementById('gmailSetupNote');
+
+            statusEl.textContent = '⏳ Checking…';
+            try {
+                const res  = await fetch(`${apiBaseUrl}/email/oauth/gmail-status?userId=default-user`.replace('/api/v1', ''));
+                const data = await res.json();
+
+                if (data.connected) {
+                    statusEl.textContent  = '✅ Connected';
+                    statusEl.style.color  = '#22c55e';
+                    emailEl.textContent   = data.emailAddress ?? '';
+                    connectBtn.textContent = '🔄 Reconnect Gmail';
+                    setupNote.style.display = 'none';
+                } else {
+                    statusEl.textContent  = '❌ Not connected';
+                    statusEl.style.color  = '#ef4444';
+                    emailEl.textContent   = '';
+                    connectBtn.textContent = '🔗 Connect Gmail';
+                    if (data.setupRequired) {
+                        setupNote.style.display = 'block';
+                    }
+                }
+            } catch (e) {
+                statusEl.textContent = '⚠️ Status unavailable';
+                statusEl.style.color = '#f59e0b';
+            }
+        }
+
+        async function connectGmail() {
+            try {
+                // Fetch the Google OAuth URL from the backend
+                const urlRes = await fetch(
+                    `${apiBaseUrl}/email/oauth/url?provider=gmail&userId=default-user`.replace('/api/v1', '')
+                );
+
+                // The backend returns a plain string (the OAuth URL)
+                const text = await urlRes.text();
+                const oauthUrl = text.replace(/^"|"$/g, ''); // strip JSON quotes if any
+
+                // Open OAuth in a popup
+                const popup = window.open(
+                    oauthUrl,
+                    'gmail-oauth',
+                    'width=500,height=650,left=200,top=100,resizable=yes,scrollbars=yes'
+                );
+
+                if (!popup) {
+                    alert('Popup was blocked. Please allow popups for this page and try again.');
+                    return;
+                }
+
+                // Listen for the callback message from the popup
+                const handler = async (event) => {
+                    if (event.data?.type === 'ATOM_GMAIL_CONNECTED') {
+                        window.removeEventListener('message', handler);
+                        popup.close();
+                        if (event.data.success) {
+                            await refreshSettingsStatus();
+                        } else {
+                            alert('Gmail connection failed: ' + (event.data.error ?? 'Unknown error'));
+                        }
+                    }
+                };
+                window.addEventListener('message', handler);
+
+                // Fallback: if popup closes without posting a message, refresh anyway
+                const pollClose = setInterval(async () => {
+                    if (popup.closed) {
+                        clearInterval(pollClose);
+                        window.removeEventListener('message', handler);
+                        await refreshSettingsStatus();
+                    }
+                }, 1000);
+
+            } catch (e) {
+                alert('Could not start Gmail connection: ' + e.message +
+                      '\n\nMake sure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set in your Railway environment variables.');
+            }
+        }
+
+        // Listen for OAuth popup messages globally
+        window.addEventListener('message', (event) => {
+            if (event.data?.type === 'ATOM_GMAIL_CONNECTED') {
+                refreshSettingsStatus();
+            }
+        });
+
     </script>
+
+    <!-- ── Settings Modal ──────────────────────────────────────────────── -->
+    <style>
+        .settings-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            z-index: 2000;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        .settings-overlay.visible { opacity: 1; visibility: visible; }
+
+        .settings-panel {
+            background: #0a0a0a;
+            border: 1px solid rgba(34,197,94,0.3);
+            border-radius: 16px;
+            padding: 2rem;
+            width: 480px;
+            max-width: 95vw;
+            max-height: 85vh;
+            overflow-y: auto;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        .settings-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(34,197,94,0.2);
+            padding-bottom: 1rem;
+        }
+
+        .settings-title { font-size: 1.2rem; font-weight: 600; color: #22c55e; }
+
+        .settings-close {
+            background: none; border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px; color: #aaa; cursor: pointer;
+            padding: 0.3rem 0.7rem; font-size: 1rem; transition: all 0.2s;
+        }
+        .settings-close:hover { border-color: #ef4444; color: #ef4444; }
+
+        .settings-section {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 12px;
+        }
+        .settings-section-title {
+            font-size: 0.85rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            color: #22c55e; margin-bottom: 0.75rem;
+        }
+
+        .settings-row {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 0.6rem; gap: 0.5rem;
+        }
+        .settings-label { font-size: 0.9rem; color: #ccc; }
+        .settings-value { font-size: 0.9rem; color: #fff; font-weight: 500; }
+
+        .settings-btn {
+            background: rgba(34,197,94,0.15);
+            border: 1px solid rgba(34,197,94,0.4);
+            color: #22c55e; border-radius: 8px;
+            padding: 0.5rem 1rem; cursor: pointer;
+            font-size: 0.85rem; transition: all 0.2s; width: 100%; margin-top: 0.5rem;
+        }
+        .settings-btn:hover {
+            background: rgba(34,197,94,0.25);
+            box-shadow: 0 0 12px rgba(34,197,94,0.2);
+        }
+
+        .settings-note {
+            font-size: 0.8rem; color: #888;
+            background: rgba(245,158,11,0.08);
+            border: 1px solid rgba(245,158,11,0.2);
+            border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem;
+            line-height: 1.5;
+        }
+        .settings-note a { color: #f59e0b; }
+        .settings-note code {
+            background: rgba(255,255,255,0.1); border-radius: 4px;
+            padding: 0 4px; font-size: 0.78rem;
+        }
+    </style>
+
+    <div class="settings-overlay" id="settingsModal" onclick="if(event.target===this)closeSettings()">
+        <div class="settings-panel">
+            <div class="settings-header">
+                <span class="settings-title">⚙️ Atom Settings</span>
+                <button class="settings-close" onclick="closeSettings()">✕</button>
+            </div>
+
+            <!-- Email Section -->
+            <div class="settings-section">
+                <div class="settings-section-title">📧 Email Account</div>
+
+                <div class="settings-row">
+                    <span class="settings-label">Status</span>
+                    <span class="settings-value" id="gmailStatusBadge">⏳ Loading…</span>
+                </div>
+                <div class="settings-row">
+                    <span class="settings-label">Send from</span>
+                    <span class="settings-value" id="gmailEmailDisplay" style="color:#22c55e;">—</span>
+                </div>
+
+                <button class="settings-btn" id="gmailConnectBtn" onclick="connectGmail()">
+                    🔗 Connect Gmail
+                </button>
+
+                <div class="settings-note" id="gmailSetupNote" style="display:none;">
+                    <strong>One-time setup required:</strong><br>
+                    Before connecting, add these to your Railway Backend service's environment variables:<br>
+                    <code>GOOGLE_CLIENT_ID</code> — from <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a><br>
+                    <code>GOOGLE_CLIENT_SECRET</code> — same place<br>
+                    <code>GOOGLE_REDIRECT_URI</code> = <code>https://atom-backend-production-8a1e.up.railway.app/email/oauth/callback</code><br>
+                    <code>EMAIL_PROVIDER_NAME</code> = <code>gmail</code><br><br>
+                    Once set, come back here and click Connect Gmail.
+                </div>
+            </div>
+
+            <!-- Calendar Section -->
+            <div class="settings-section">
+                <div class="settings-section-title">📅 Calendar</div>
+                <div class="settings-row">
+                    <span class="settings-label">Provider</span>
+                    <span class="settings-value">Google Calendar</span>
+                </div>
+                <div class="settings-row">
+                    <span class="settings-label">Status</span>
+                    <span class="settings-value" style="color:#f59e0b;">Coming soon</span>
+                </div>
+                <div class="settings-note">
+                    Calendar will use the same Google account you connect for Gmail.
+                    Once Gmail is connected, calendar access is enabled automatically
+                    (requires <code>calendar.readonly</code> scope — you can re-connect Gmail to add it).
+                </div>
+            </div>
+
+            <!-- Account Info -->
+            <div class="settings-section">
+                <div class="settings-section-title">👤 Account</div>
+                <div class="settings-row">
+                    <span class="settings-label">User ID</span>
+                    <span class="settings-value" style="color:#888;">default-user</span>
+                </div>
+                <div class="settings-row">
+                    <span class="settings-label">AI Model</span>
+                    <span class="settings-value" style="color:#22c55e;">Claude (Anthropic)</span>
+                </div>
+                <div class="settings-row">
+                    <span class="settings-label">Voice input</span>
+                    <span class="settings-value" style="color:#22c55e;">Whisper (OpenAI)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
