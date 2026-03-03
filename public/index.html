@@ -696,24 +696,22 @@
         let conversationMessages = [];
         let conversationId = null;
         
-        // Backend API Configuration — loaded at runtime from server env vars
-        let apiBaseUrl = 'https://atom-backend-production-8a1e.up.railway.app/api/v1';
-        let _apiKey = '';
+        // Backend API Configuration
+        // All requests go through the Express server-side proxy at /proxy/api/v1
+        // This means: NO cross-origin issues, NO CORS errors, API key injected server-side.
+        let apiBaseUrl = '/proxy/api/v1';
 
         async function loadConfig() {
             try {
                 const cfg = await fetch('/api/config').then(r => r.json());
                 if (cfg.apiBaseUrl) apiBaseUrl = cfg.apiBaseUrl;
-                if (cfg.apiKey)     _apiKey     = cfg.apiKey;
             } catch (e) {
-                console.warn('Could not load /api/config — using defaults', e);
+                console.warn('Could not load /api/config — using proxy default', e);
             }
         }
 
-        // Returns Authorization header if an API key is configured
-        function authHeaders() {
-            return _apiKey ? { 'Authorization': `Bearer ${_apiKey}` } : {};
-        }
+        // Auth is now handled server-side by the proxy — no key needed in the browser
+        function authHeaders() { return {}; }
         
         // Waveform animation variables
         let waveformPoints = [];
