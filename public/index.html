@@ -756,6 +756,50 @@
         .conn-badge.warn { background: rgba(245,158,11,0.15); color: #f59e0b; }
         .conn-badge.err  { background: rgba(239,68,68,0.15);  color: #ef4444; }
 
+        /* ── Confirmation card ────────────────────── */
+        .confirm-card {
+            border: 1px solid rgba(245,158,11,0.5) !important;
+            background: rgba(245,158,11,0.06) !important;
+            border-radius: 12px;
+        }
+        .confirm-card .message-role {
+            color: #f59e0b !important;
+            font-weight: 700;
+        }
+        .confirm-body {
+            white-space: pre-wrap;
+            font-size: 0.88rem;
+            line-height: 1.6;
+        }
+        .confirm-buttons {
+            display: flex; gap: 0.75rem;
+            margin-top: 1rem; flex-wrap: wrap;
+        }
+        .confirm-yes-btn, .confirm-no-btn {
+            padding: 0.55rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.88rem; font-weight: 600;
+            cursor: pointer; border: none;
+            transition: all 0.2s ease;
+        }
+        .confirm-yes-btn {
+            background: rgba(34,197,94,0.2);
+            border: 1px solid rgba(34,197,94,0.5);
+            color: #22c55e;
+        }
+        .confirm-yes-btn:hover { background: rgba(34,197,94,0.35); }
+        .confirm-no-btn {
+            background: rgba(239,68,68,0.15);
+            border: 1px solid rgba(239,68,68,0.4);
+            color: #ef4444;
+        }
+        .confirm-no-btn:hover { background: rgba(239,68,68,0.28); }
+        .confirm-resolved {
+            display: flex; align-items: center; gap: 0.5rem;
+            font-size: 0.82rem; color: #888;
+            margin-top: 0.75rem; font-style: italic;
+        }
+
         /* ── Placeholder / coming-soon cards ─────── */
         .placeholder-card {
             border: 1px dashed rgba(255,255,255,0.15);
@@ -971,7 +1015,7 @@
                             onkeydown="handleTextInputKeydown(event)"
                             onclick="event.stopPropagation()"
                         ></textarea>
-                        <button class="send-button" id="sendButton" onclick="sendTextMessage()">
+                        <button class="send-button" id="sendButton" onclick="sendTextFromInput()">
                             Send
                         </button>
                     </div>
@@ -1541,15 +1585,37 @@
                         </div>
                     `;
                 } else {
-                    conversationHtml += `
-                        <div class="conversation-message assistant-message">
-                            <div class="message-header">
-                                <span class="message-role">Atom 🤖</span>
-                                <span class="message-time">${timeStamp}</span>
+                    // Detect confirmation request messages from Atom
+                    const isConfirmation = message.content.includes('📋') ||
+                        message.content.includes('Shall I go ahead') ||
+                        message.content.includes('✅ Shall I') ||
+                        message.content.includes('Shall I proceed');
+
+                    if (isConfirmation && message.awaitingConfirmation !== false) {
+                        conversationHtml += `
+                            <div class="conversation-message assistant-message confirm-card" id="confirm-${conversationMessages.indexOf(message)}">
+                                <div class="message-header">
+                                    <span class="message-role">Atom ⚡ Action Required</span>
+                                    <span class="message-time">${timeStamp}</span>
+                                </div>
+                                <div class="message-content confirm-body">${message.content.replace(/\n/g, '<br>')}</div>
+                                <div class="confirm-buttons">
+                                    <button class="confirm-yes-btn" onclick="confirmAction(${conversationMessages.indexOf(message)})">✅ Yes, go ahead</button>
+                                    <button class="confirm-no-btn"  onclick="cancelAction(${conversationMessages.indexOf(message)})">❌ No, cancel</button>
+                                </div>
                             </div>
-                            <div class="message-content">${message.content}</div>
-                        </div>
-                    `;
+                        `;
+                    } else {
+                        conversationHtml += `
+                            <div class="conversation-message assistant-message">
+                                <div class="message-header">
+                                    <span class="message-role">Atom 🤖</span>
+                                    <span class="message-time">${timeStamp}</span>
+                                </div>
+                                <div class="message-content">${message.content}</div>
+                            </div>
+                        `;
+                    }
                 }
             });
             
@@ -1588,21 +1654,21 @@
         function handleTextInputKeydown(event) {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
-                sendTextMessage();
+                sendTextFromInput();
             }
         }
 
-        async function sendTextMessage() {
+        async function sendTextFromInput() {
             const textInput = document.getElementById('textInput');
             const message = textInput.value.trim();
-            
+
             if (!message) return;
-            
+
             textInput.value = '';
             textInput.style.height = 'auto';
             document.getElementById('sendButton').disabled = true;
-            
-            await processTextCommand(message);
+
+            await sendTextMessage(message);
         }
 
         // Clear conversation
@@ -2043,6 +2109,38 @@
                     ${extra}
                 </div>
             </div>`;
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // CONFIRMATION HANDLERS
+        // ══════════════════════════════════════════════════════════════════
+
+        function confirmAction(msgIndex) {
+            // Mark message as resolved so buttons disappear
+            if (conversationMessages[msgIndex]) {
+                conversationMessages[msgIndex].awaitingConfirmation = false;
+                conversationMessages[msgIndex].confirmed = true;
+            }
+            updateConversationDisplay();
+            // Send "yes" as the next user turn — Atom will now call the tool
+            sendTextMessage('yes, go ahead');
+        }
+
+        function cancelAction(msgIndex) {
+            // Mark message as resolved
+            if (conversationMessages[msgIndex]) {
+                conversationMessages[msgIndex].awaitingConfirmation = false;
+                conversationMessages[msgIndex].confirmed = false;
+            }
+            updateConversationDisplay();
+            // Send "no" — Atom will ask what to change
+            sendTextMessage('no, cancel that');
+        }
+
+        // Shared helper — confirm/cancel buttons and sendTextFromInput all route through here
+        async function sendTextMessage(text) {
+            if (!text || !text.trim()) return;
+            await processTextCommand(text);
         }
 
         // ── Utility ──────────────────────────────────────────────────────
