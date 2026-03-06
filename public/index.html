@@ -865,6 +865,19 @@
                     <span class="nav-icon">🗓️</span> Calendar View
                 </div>
 
+
+                <!-- CRM -->
+                <div class="nav-group-title">AccuLynx CRM</div>
+                <div class="nav-item" id="nav-crm-jobs" onclick="showPanel('crm-jobs')">
+                    <span class="nav-icon">🏗️</span> Jobs
+                </div>
+                <div class="nav-item" id="nav-crm-contacts" onclick="showPanel('crm-contacts')">
+                    <span class="nav-icon">👥</span> Contacts
+                </div>
+                <div class="nav-item" id="nav-crm-lead" onclick="showPanel('crm-lead')">
+                    <span class="nav-icon">➕</span> New Lead
+                </div>
+
                 <!-- Memory & Data -->
                 <div class="nav-group-title">Memory &amp; Data</div>
                 <div class="nav-item" id="nav-conversations" onclick="showPanel('conversations')">
@@ -1141,7 +1154,91 @@
             </div>
         </div>
 
-        <!-- ══ PANEL: Conversations ═══════════════════════════════════════ -->
+
+        <!-- ══ PANEL: CRM Jobs ════════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-crm-jobs">
+            <div class="panel-header">
+                <span class="panel-title">🏗️ AccuLynx Jobs</span>
+                <button class="panel-action-btn" onclick="loadCrmJobs()">↻ Refresh</button>
+            </div>
+            <div class="panel-body">
+                <div style="display:flex;gap:0.4rem;margin-bottom:0.75rem;">
+                    <input class="form-input" id="crmJobSearch" type="text" placeholder="Search jobs…" style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;" onkeydown="if(event.key==='Enter')loadCrmJobs()">
+                    <button class="panel-action-btn" onclick="loadCrmJobs()" style="padding:0.3rem 0.6rem;">🔍</button>
+                </div>
+                <div id="crmJobsBody">
+                    <p class="panel-msg">Loading jobs…</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: CRM Contacts ════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-crm-contacts">
+            <div class="panel-header">
+                <span class="panel-title">👥 Contacts</span>
+                <button class="panel-action-btn" onclick="loadCrmContacts()">↻ Refresh</button>
+            </div>
+            <div class="panel-body">
+                <div style="display:flex;gap:0.4rem;margin-bottom:0.75rem;">
+                    <input class="form-input" id="crmContactSearch" type="text" placeholder="Search contacts…" style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;" onkeydown="if(event.key==='Enter')loadCrmContacts()">
+                    <button class="panel-action-btn" onclick="loadCrmContacts()" style="padding:0.3rem 0.6rem;">🔍</button>
+                </div>
+                <div id="crmContactsBody">
+                    <p class="panel-msg">Loading contacts…</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: CRM New Lead ════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-crm-lead">
+            <div class="panel-header">
+                <span class="panel-title">➕ New Lead</span>
+            </div>
+            <div class="panel-body">
+                <div class="form-group">
+                    <label class="form-label">First Name *</label>
+                    <input class="form-input" id="leadFirstName" type="text" placeholder="John">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Last Name *</label>
+                    <input class="form-input" id="leadLastName" type="text" placeholder="Smith">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input class="form-input" id="leadEmail" type="email" placeholder="john@example.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Phone</label>
+                    <input class="form-input" id="leadPhone" type="tel" placeholder="(555) 555-5555">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Address</label>
+                    <input class="form-input" id="leadAddress" type="text" placeholder="123 Main St">
+                </div>
+                <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:0.5rem;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">City</label>
+                        <input class="form-input" id="leadCity" type="text" placeholder="Dallas">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">State</label>
+                        <input class="form-input" id="leadState" type="text" placeholder="TX">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">ZIP</label>
+                        <input class="form-input" id="leadZip" type="text" placeholder="75001">
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top:0.5rem;">
+                    <label class="form-label">Notes</label>
+                    <textarea class="form-textarea" id="leadNotes" style="min-height:60px;" placeholder="Roof damage, hail claim…"></textarea>
+                </div>
+                <button class="form-submit-btn" id="leadSaveBtn" onclick="createCrmLead()" style="margin-top:0.5rem;">🏗️ Create Lead</button>
+                <p class="panel-msg" id="leadStatus" style="display:none;"></p>
+            </div>
+        </div>
+
+                <!-- ══ PANEL: Conversations ═══════════════════════════════════════ -->
         <div class="panel-view" id="panel-conversations">
             <div class="panel-header">
                 <span class="panel-title">💭 Conversations</span>
@@ -1865,6 +1962,8 @@
             if (name === 'sent')          loadSent();
             if (name === 'conversations') loadConversations();
             if (name === 'connections')   loadConnections();
+            if (name === 'crm-jobs')      loadCrmJobs();
+            if (name === 'crm-contacts')  loadCrmContacts();
             if (name === 'today')         loadTodayEvents();
             if (name === 'calview')       loadCalendarView();
         }
@@ -2022,12 +2121,138 @@
             }
         }
 
-        // ── Calendar: New Event (placeholder) ───────────────────────────
+        // ── Calendar: New Event ──────────────────────────────────────────
         async function saveCalendarEvent() {
-            const status = document.getElementById('eventStatus');
-            status.textContent = '⏳ Calendar write support coming soon. Ask Atom on the Dashboard to create events for you!';
-            status.className = 'panel-msg warn';
-            status.style.display = 'block';
+            const status  = document.getElementById('eventStatus');
+            const btn     = document.getElementById('eventSaveBtn');
+            const title   = document.getElementById('eventTitle').value.trim();
+            const date    = document.getElementById('eventDate').value;
+            const time    = document.getElementById('eventTime').value;
+            const dur     = parseInt(document.getElementById('eventDuration').value) || 60;
+            const desc    = document.getElementById('eventDesc').value.trim();
+            if (!title || !date || !time) {
+                status.textContent = 'Please fill in Title, Date and Time.';
+                status.className = 'panel-msg err'; status.style.display = 'block'; return;
+            }
+            const start = new Date(`${date}T${time}:00`);
+            const end   = new Date(start.getTime() + dur * 60000);
+            btn.disabled = true;
+            status.textContent = 'Creating event…'; status.className = 'panel-msg'; status.style.display = 'block';
+            try {
+                const res  = await fetch(`${apiBaseUrl}/integrations/calendar/events`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, startTime: start.toISOString(), endTime: end.toISOString(), description: desc }),
+                });
+                const data = await res.json();
+                if (data.success || data.event) {
+                    status.textContent = `✅ Event "${title}" created!`; status.className = 'panel-msg ok';
+                    document.getElementById('eventTitle').value = '';
+                    document.getElementById('eventDate').value  = '';
+                    document.getElementById('eventDesc').value  = '';
+                } else {
+                    status.textContent = `❌ ${data.error || 'Failed to create event'}`;
+                    status.className = 'panel-msg err';
+                }
+            } catch (err) {
+                status.textContent = `❌ ${err.message}`; status.className = 'panel-msg err';
+            } finally { btn.disabled = false; }
+        }
+
+        // ── CRM: Jobs ─────────────────────────────────────────────────────
+        async function loadCrmJobs() {
+            const body   = document.getElementById('crmJobsBody');
+            const search = document.getElementById('crmJobSearch')?.value?.trim() || '';
+            body.innerHTML = '<p class="panel-msg">Loading jobs…</p>';
+            try {
+                const url = `${apiBaseUrl}/integrations/crm/jobs` + (search ? `?search=${encodeURIComponent(search)}` : '');
+                const res  = await fetch(url);
+                const data = await res.json();
+                const jobs = data.data || data.jobs || data || [];
+                if (!Array.isArray(jobs) || jobs.length === 0) {
+                    body.innerHTML = `<div class="placeholder-card">
+                        <div class="placeholder-icon">🏗️</div>
+                        <div class="placeholder-text">${search ? 'No jobs matched "'+esc(search)+'".' : 'No jobs found.'}<br><br>Add <strong>ACCULYNX_API_KEY</strong> in Railway to connect.</div>
+                    </div>`; return;
+                }
+                body.innerHTML = jobs.map(j => `
+                    <div style="border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:0.7rem 0.85rem;margin-bottom:0.5rem;background:rgba(255,255,255,0.03);">
+                        <div style="font-weight:600;color:#e2e8f0;margin-bottom:0.2rem;">${esc(j.jobName||'Job')}</div>
+                        ${j.status ? `<div style="font-size:0.75rem;color:#94a3b8;">Status: ${esc(j.status)}</div>` : ''}
+                        ${j.address ? `<div style="font-size:0.75rem;color:#94a3b8;">📍 ${esc(j.address)}${j.city ? ', '+esc(j.city) : ''}</div>` : ''}
+                        ${j.contactName ? `<div style="font-size:0.75rem;color:#94a3b8;">👤 ${esc(j.contactName)}</div>` : ''}
+                        <div style="font-size:0.72rem;color:#64748b;margin-top:0.2rem;">ID: ${esc(j.jobId)}</div>
+                    </div>`).join('');
+            } catch (err) {
+                body.innerHTML = `<div class="placeholder-card"><div class="placeholder-text">CRM not connected.<br><br>Add ACCULYNX_API_KEY in Railway to enable.</div></div>`;
+            }
+        }
+
+        // ── CRM: Contacts ────────────────────────────────────────────────
+        async function loadCrmContacts() {
+            const body   = document.getElementById('crmContactsBody');
+            const search = document.getElementById('crmContactSearch')?.value?.trim() || '';
+            body.innerHTML = '<p class="panel-msg">Loading contacts…</p>';
+            try {
+                const url = `${apiBaseUrl}/integrations/crm/contacts` + (search ? `?search=${encodeURIComponent(search)}` : '');
+                const res  = await fetch(url);
+                const data = await res.json();
+                const contacts = data.data || data.contacts || data || [];
+                if (!Array.isArray(contacts) || contacts.length === 0) {
+                    body.innerHTML = `<div class="placeholder-card">
+                        <div class="placeholder-icon">👥</div>
+                        <div class="placeholder-text">${search ? 'No contacts matched.' : 'No contacts found.'}</div>
+                    </div>`; return;
+                }
+                body.innerHTML = contacts.map(c => `
+                    <div style="border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:0.6rem 0.85rem;margin-bottom:0.4rem;background:rgba(255,255,255,0.03);">
+                        <div style="font-weight:600;color:#e2e8f0;">${esc(c.firstName)} ${esc(c.lastName)}</div>
+                        ${c.email ? `<div style="font-size:0.78rem;color:#94a3b8;">✉️ ${esc(c.email)}</div>` : ''}
+                        ${c.phone ? `<div style="font-size:0.78rem;color:#94a3b8;">📞 ${esc(c.phone)}</div>` : ''}
+                        ${c.city  ? `<div style="font-size:0.78rem;color:#94a3b8;">📍 ${esc(c.city)}${c.state ? ', '+esc(c.state) : ''}</div>` : ''}
+                    </div>`).join('');
+            } catch (err) {
+                body.innerHTML = `<div class="placeholder-card"><div class="placeholder-text">CRM not connected.</div></div>`;
+            }
+        }
+
+        // ── CRM: Create Lead ─────────────────────────────────────────────
+        async function createCrmLead() {
+            const status = document.getElementById('leadStatus');
+            const btn    = document.getElementById('leadSaveBtn');
+            const firstName = document.getElementById('leadFirstName').value.trim();
+            const lastName  = document.getElementById('leadLastName').value.trim();
+            if (!firstName || !lastName) {
+                status.textContent = 'First and last name are required.';
+                status.className = 'panel-msg err'; status.style.display = 'block'; return;
+            }
+            btn.disabled = true;
+            status.textContent = 'Creating lead…'; status.className = 'panel-msg'; status.style.display = 'block';
+            try {
+                const payload = {
+                    firstName, lastName,
+                    email:   document.getElementById('leadEmail').value.trim()   || undefined,
+                    phone:   document.getElementById('leadPhone').value.trim()   || undefined,
+                    address: document.getElementById('leadAddress').value.trim() || undefined,
+                    city:    document.getElementById('leadCity').value.trim()    || undefined,
+                    state:   document.getElementById('leadState').value.trim()   || undefined,
+                    zip:     document.getElementById('leadZip').value.trim()     || undefined,
+                    notes:   document.getElementById('leadNotes').value.trim()   || undefined,
+                };
+                const res  = await fetch(`${apiBaseUrl}/integrations/crm/leads`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                const data = await res.json();
+                if (data.success || data.message?.includes('success')) {
+                    status.textContent = `✅ Lead "${firstName} ${lastName}" created in AccuLynx!`;
+                    status.className = 'panel-msg ok';
+                    ['leadFirstName','leadLastName','leadEmail','leadPhone','leadAddress','leadCity','leadState','leadZip','leadNotes'].forEach(id => { const el=document.getElementById(id); if(el)el.value=''; });
+                } else {
+                    status.textContent = `❌ ${data.error || 'Failed to create lead'}`; status.className = 'panel-msg err';
+                }
+            } catch (err) {
+                status.textContent = `❌ ${err.message}`; status.className = 'panel-msg err';
+            } finally { btn.disabled = false; }
         }
 
         // ── Conversations ────────────────────────────────────────────────
@@ -2089,8 +2314,23 @@
             // 4. Whisper / Voice
             cards.push(connCard('🎙️', 'Whisper (OpenAI)', 'Voice transcription', 'ok', 'Active'));
 
-            // 5. Google Calendar (placeholder)
-            cards.push(connCard('🗓️', 'Google Calendar', 'Calendar sync', 'warn', 'Coming soon'));
+            // 5. Google Calendar (via Gmail OAuth)
+            try {
+                const r = await fetch(`${apiBaseUrl}/integrations/calendar/status?userId=default-user`);
+                const d = await r.json();
+                const badge = d.connected ? 'ok' : 'warn';
+                const label = d.connected ? `Connected (${d.emailAddress || ''})` : d.note || 'Not connected';
+                cards.push(connCard('🗓️', 'Google Calendar', 'Calendar sync', badge, label, `<button class="panel-action-btn" style="font-size:0.75rem;padding:0.25rem 0.6rem;" onclick="showPanel('today')">View</button>`));
+            } catch { cards.push(connCard('🗓️', 'Google Calendar', 'Calendar sync', 'warn', 'Status unavailable')); }
+
+            // 6. AccuLynx CRM
+            try {
+                const r = await fetch(`${apiBaseUrl}/integrations/crm/status`);
+                const d = await r.json();
+                const badge = d.connected ? 'ok' : 'warn';
+                const label = d.connected ? 'Connected' : d.message || 'Not connected';
+                cards.push(connCard('🏗️', 'AccuLynx CRM', 'Jobs & contacts', badge, label, `<button class="panel-action-btn" style="font-size:0.75rem;padding:0.25rem 0.6rem;" onclick="showPanel('crm-jobs')">View Jobs</button>`));
+            } catch { cards.push(connCard('🏗️', 'AccuLynx CRM', 'Jobs & contacts', 'warn', 'Status unavailable')); }
 
             body.innerHTML = cards.join('');
         }
