@@ -1266,12 +1266,89 @@
         <div class="panel-view" id="panel-knowledge">
             <div class="panel-header">
                 <span class="panel-title">🧠 Knowledge Base</span>
+                <button class="panel-action-btn" onclick="showPanel('kb-add')" style="font-size:0.75rem;padding:0.25rem 0.6rem;">+ Add</button>
             </div>
             <div class="panel-body">
-                <div class="placeholder-card">
-                    <div class="placeholder-icon">🧠</div>
-                    <div class="placeholder-text">Atom's memory and knowledge base will be browsable here.<br><br>Everything Atom learns from your conversations will appear in this space.</div>
+                <!-- Search bar -->
+                <div style="display:flex;gap:0.4rem;margin-bottom:0.75rem;">
+                    <input class="form-input" id="kbSearchInput" type="text" placeholder="Search knowledge base…"
+                           style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;"
+                           onkeydown="if(event.key==='Enter')loadKnowledgeBase()">
+                    <button class="panel-action-btn" onclick="loadKnowledgeBase()" style="padding:0.3rem 0.6rem;">🔍</button>
                 </div>
+                <!-- Category filter chips (populated by JS) -->
+                <div id="kbCategoryChips" style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.75rem;"></div>
+                <!-- Entry list -->
+                <div id="kbBody"><p class="panel-msg">Loading…</p></div>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: KB Add Entry ════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-kb-add">
+            <div class="panel-header">
+                <span class="panel-title">📝 Add to Knowledge Base</span>
+            </div>
+            <div class="panel-body">
+                <!-- Tab switcher -->
+                <div style="display:flex;gap:0;margin-bottom:1rem;border:1px solid rgba(255,255,255,0.12);border-radius:6px;overflow:hidden;">
+                    <button id="kbTabText" onclick="switchKbTab('text')"
+                        style="flex:1;padding:0.4rem;font-size:0.78rem;background:rgba(34,197,94,0.18);color:#22c55e;border:none;cursor:pointer;font-family:inherit;">
+                        ✏️ Write
+                    </button>
+                    <button id="kbTabFile" onclick="switchKbTab('file')"
+                        style="flex:1;padding:0.4rem;font-size:0.78rem;background:transparent;color:#94a3b8;border:none;cursor:pointer;font-family:inherit;">
+                        📎 Upload File
+                    </button>
+                </div>
+
+                <!-- Write tab -->
+                <div id="kbTabTextBody">
+                    <div class="form-group">
+                        <label class="form-label">Title *</label>
+                        <input class="form-input" id="kbEntryTitle" type="text" placeholder="e.g. Company Roofing SOP">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Category (optional)</label>
+                        <input class="form-input" id="kbEntryCategory" type="text" placeholder="e.g. sop, product, company">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Content *</label>
+                        <textarea class="form-textarea" id="kbEntryContent" style="min-height:140px;"
+                            placeholder="Paste or write any information Atom should know…"></textarea>
+                    </div>
+                    <button class="form-submit-btn" id="kbSaveBtn" onclick="saveKbEntry()">🧠 Save to Knowledge Base</button>
+                </div>
+
+                <!-- Upload tab -->
+                <div id="kbTabFileBody" style="display:none;">
+                    <div class="form-group">
+                        <label class="form-label">Title (optional — defaults to filename)</label>
+                        <input class="form-input" id="kbFileTitle" type="text" placeholder="Custom title…">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Category (optional)</label>
+                        <input class="form-input" id="kbFileCategory" type="text" placeholder="e.g. sop, product, company">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">File (.txt, .md, .pdf)</label>
+                        <input class="form-input" id="kbFileInput" type="file" accept=".txt,.md,.pdf"
+                            style="padding:0.35rem;font-size:0.8rem;">
+                    </div>
+                    <button class="form-submit-btn" id="kbUploadBtn" onclick="uploadKbFile()">📎 Upload File</button>
+                </div>
+
+                <p class="panel-msg" id="kbAddStatus" style="display:none;margin-top:0.6rem;"></p>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: KB Entry Detail ═════════════════════════════════════ -->
+        <div class="panel-view" id="panel-kb-detail">
+            <div class="panel-header">
+                <span class="panel-title" id="kbDetailTitle">🧠 Entry</span>
+                <button class="panel-action-btn" onclick="showPanel('knowledge')" style="font-size:0.72rem;padding:0.2rem 0.5rem;">← Back</button>
+            </div>
+            <div class="panel-body" id="kbDetailBody">
+                <p class="panel-msg">Loading…</p>
             </div>
         </div>
 
@@ -1963,6 +2040,7 @@
             if (name === 'conversations') loadConversations();
             if (name === 'connections')   loadConnections();
             if (name === 'crm-jobs')      loadCrmJobs();
+            if (name === 'knowledge')     loadKnowledgeBase();
             if (name === 'crm-contacts')  loadCrmContacts();
             if (name === 'today')         loadTodayEvents();
             if (name === 'calview')       loadCalendarView();
@@ -2255,7 +2333,175 @@
             } finally { btn.disabled = false; }
         }
 
-        // ── Conversations ────────────────────────────────────────────────
+
+        // ══════════════════════════════════════════════════════════════════
+        // KNOWLEDGE BASE
+        // ══════════════════════════════════════════════════════════════════
+        let kbActiveCat = null;
+
+        function switchKbTab(tab) {
+            document.getElementById('kbTabTextBody').style.display = tab === 'text' ? '' : 'none';
+            document.getElementById('kbTabFileBody').style.display = tab === 'file' ? '' : 'none';
+            document.getElementById('kbTabText').style.background = tab === 'text' ? 'rgba(34,197,94,0.18)' : 'transparent';
+            document.getElementById('kbTabText').style.color       = tab === 'text' ? '#22c55e' : '#94a3b8';
+            document.getElementById('kbTabFile').style.background = tab === 'file' ? 'rgba(34,197,94,0.18)' : 'transparent';
+            document.getElementById('kbTabFile').style.color       = tab === 'file' ? '#22c55e' : '#94a3b8';
+        }
+
+        async function loadKnowledgeBase() {
+            const body   = document.getElementById('kbBody');
+            const search = document.getElementById('kbSearchInput')?.value?.trim() || '';
+            body.innerHTML = '<p class="panel-msg">Loading…</p>';
+
+            // Load categories for chips
+            try {
+                const catRes = await fetch(`${apiBaseUrl}/knowledge-base/categories`);
+                const catData = await catRes.json();
+                const cats = catData.categories || [];
+                const chips = document.getElementById('kbCategoryChips');
+                if (chips) {
+                    chips.innerHTML = ['All', ...cats].map(cat => {
+                        const active = (cat === 'All' && !kbActiveCat) || cat === kbActiveCat;
+                        return `<button onclick="setKbCategory('${cat === 'All' ? '' : cat}')"
+                            style="padding:0.2rem 0.55rem;font-size:0.73rem;border-radius:99px;border:1px solid ${active ? '#22c55e' : 'rgba(255,255,255,0.12)'};background:${active ? 'rgba(34,197,94,0.18)' : 'transparent'};color:${active ? '#22c55e' : '#94a3b8'};cursor:pointer;font-family:inherit;">${esc(cat)}</button>`;
+                    }).join('');
+                }
+            } catch {}
+
+            try {
+                const params = new URLSearchParams({ page: '1', pageSize: '30' });
+                if (search)        params.set('search', search);
+                if (kbActiveCat)   params.set('category', kbActiveCat);
+
+                const res  = await fetch(`${apiBaseUrl}/knowledge-base?${params}`);
+                const data = await res.json();
+                const entries = data.entries || [];
+                const total   = data.total ?? entries.length;
+
+                if (!entries.length) {
+                    body.innerHTML = `<div class="placeholder-card">
+                        <div class="placeholder-icon">🧠</div>
+                        <div class="placeholder-text">${search ? 'No entries matched "'+esc(search)+'".' : 'Your knowledge base is empty.'}<br><br>
+                        Click <strong>+ Add</strong> to add company info, SOPs, or product details that Atom can reference.</div>
+                    </div>`;
+                    return;
+                }
+
+                body.innerHTML = `<div style="font-size:0.73rem;color:#64748b;margin-bottom:0.5rem;">${total} entr${total===1?'y':'ies'}</div>` +
+                    entries.map(e => `
+                    <div onclick="viewKbEntry('${esc(e.id)}', ${JSON.stringify(esc(e.title)).replace(/"/g,"'")})"
+                         style="border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:0.65rem 0.85rem;margin-bottom:0.45rem;background:rgba(255,255,255,0.03);cursor:pointer;"
+                         onmouseover="this.style.background='rgba(255,255,255,0.06)'"
+                         onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+                        <div style="font-weight:600;color:#e2e8f0;margin-bottom:0.15rem;">${esc(e.title)}</div>
+                        ${e.category ? `<span style="font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:99px;background:rgba(34,197,94,0.12);color:#22c55e;">${esc(e.category)}</span>` : ''}
+                        <div style="font-size:0.75rem;color:#94a3b8;margin-top:0.25rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(e.content.slice(0,120))}</div>
+                        <div style="font-size:0.68rem;color:#475569;margin-top:0.2rem;">${esc(e.source)} · ${new Date(e.createdAt).toLocaleDateString()}</div>
+                    </div>`).join('');
+            } catch (err) {
+                body.innerHTML = `<p class="panel-msg err">Could not load knowledge base: ${esc(err.message)}</p>`;
+            }
+        }
+
+        function setKbCategory(cat) {
+            kbActiveCat = cat || null;
+            loadKnowledgeBase();
+        }
+
+        async function viewKbEntry(id, title) {
+            document.getElementById('kbDetailTitle').textContent = '🧠 ' + title;
+            document.getElementById('kbDetailBody').innerHTML = '<p class="panel-msg">Loading…</p>';
+            showPanel('kb-detail');
+            try {
+                const res  = await fetch(`${apiBaseUrl}/knowledge-base/${id}`);
+                const data = await res.json();
+                const e    = data.entry || data;
+                const body = document.getElementById('kbDetailBody');
+                body.innerHTML = `
+                    <div style="margin-bottom:0.75rem;">
+                        ${e.category ? `<span style="font-size:0.72rem;padding:0.15rem 0.5rem;border-radius:99px;background:rgba(34,197,94,0.12);color:#22c55e;margin-right:0.4rem;">${esc(e.category)}</span>` : ''}
+                        <span style="font-size:0.72rem;color:#64748b;">${esc(e.source)} · ${new Date(e.createdAt).toLocaleDateString()}</span>
+                        ${e.fileName ? `<span style="font-size:0.7rem;color:#64748b;margin-left:0.4rem;">📎 ${esc(e.fileName)}</span>` : ''}
+                    </div>
+                    <div style="white-space:pre-wrap;font-size:0.83rem;color:#cbd5e1;line-height:1.6;border-top:1px solid rgba(255,255,255,0.06);padding-top:0.75rem;">${esc(e.content)}</div>
+                    <div style="margin-top:1rem;display:flex;gap:0.5rem;">
+                        <button class="panel-action-btn" onclick="deleteKbEntry('${id}')" style="background:rgba(239,68,68,0.12);color:#ef4444;border-color:#ef4444;">🗑 Delete</button>
+                    </div>`;
+            } catch (err) {
+                document.getElementById('kbDetailBody').innerHTML = `<p class="panel-msg err">${esc(err.message)}</p>`;
+            }
+        }
+
+        async function deleteKbEntry(id) {
+            if (!confirm('Delete this knowledge base entry?')) return;
+            try {
+                await fetch(`${apiBaseUrl}/knowledge-base/${id}`, { method: 'DELETE' });
+                showPanel('knowledge');
+                loadKnowledgeBase();
+            } catch (err) {
+                alert('Delete failed: ' + err.message);
+            }
+        }
+
+        async function saveKbEntry() {
+            const status  = document.getElementById('kbAddStatus');
+            const btn     = document.getElementById('kbSaveBtn');
+            const title   = document.getElementById('kbEntryTitle').value.trim();
+            const content = document.getElementById('kbEntryContent').value.trim();
+            const cat     = document.getElementById('kbEntryCategory').value.trim();
+            if (!title || !content) {
+                status.textContent = 'Title and content are required.'; status.className = 'panel-msg err'; status.style.display = 'block'; return;
+            }
+            btn.disabled = true; status.textContent = 'Saving…'; status.className = 'panel-msg'; status.style.display = 'block';
+            try {
+                const res  = await fetch(`${apiBaseUrl}/knowledge-base`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, content, source: 'manual', category: cat || undefined }),
+                });
+                const data = await res.json();
+                if (data.success) {
+                    status.textContent = `✅ "${title}" saved!`; status.className = 'panel-msg ok';
+                    document.getElementById('kbEntryTitle').value   = '';
+                    document.getElementById('kbEntryContent').value = '';
+                    document.getElementById('kbEntryCategory').value = '';
+                } else {
+                    status.textContent = `❌ ${data.error || 'Save failed'}`; status.className = 'panel-msg err';
+                }
+            } catch (err) {
+                status.textContent = `❌ ${err.message}`; status.className = 'panel-msg err';
+            } finally { btn.disabled = false; }
+        }
+
+        async function uploadKbFile() {
+            const status = document.getElementById('kbAddStatus');
+            const btn    = document.getElementById('kbUploadBtn');
+            const fileInput = document.getElementById('kbFileInput');
+            const title  = document.getElementById('kbFileTitle').value.trim();
+            const cat    = document.getElementById('kbFileCategory').value.trim();
+            if (!fileInput.files?.length) {
+                status.textContent = 'Please select a file.'; status.className = 'panel-msg err'; status.style.display = 'block'; return;
+            }
+            const file = fileInput.files[0];
+            btn.disabled = true; status.textContent = 'Uploading…'; status.className = 'panel-msg'; status.style.display = 'block';
+            try {
+                const fd = new FormData();
+                fd.append('file', file);
+                if (title) fd.append('title', title);
+                if (cat)   fd.append('category', cat);
+                const res  = await fetch(`${apiBaseUrl}/knowledge-base/upload`, { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.success) {
+                    status.textContent = `✅ "${data.entry?.title || file.name}" uploaded!`; status.className = 'panel-msg ok';
+                    fileInput.value = ''; document.getElementById('kbFileTitle').value = ''; document.getElementById('kbFileCategory').value = '';
+                } else {
+                    status.textContent = `❌ ${data.error || 'Upload failed'}`; status.className = 'panel-msg err';
+                }
+            } catch (err) {
+                status.textContent = `❌ ${err.message}`; status.className = 'panel-msg err';
+            } finally { btn.disabled = false; }
+        }
+
+                // ── Conversations ────────────────────────────────────────────────
         async function loadConversations() {
             const body = document.getElementById('conversationsBody');
             body.innerHTML = '<p class="panel-msg">Loading conversations…</p>';
