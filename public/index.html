@@ -184,31 +184,31 @@
         .main-content {
             flex: 1;
             display: flex;
+            flex-direction: row;
+            align-items: stretch;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Wave stage */
+        .voice-container {
+            flex: 1;
+            display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             padding: 2rem;
             position: relative;
-        }
-
-        /* Voice Interface */
-        .voice-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 3rem;
-            width: 100%;
-            max-width: 800px;
+            min-width: 0;
         }
 
         .waveform-container {
             width: 100%;
-            height: 240px;
+            height: 260px;
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
-            margin-bottom: 1.5rem;
         }
         .wave-canvas {
             width: 100%;
@@ -218,75 +218,59 @@
             cursor: pointer;
         }
 
-        .controls {
-            display: flex;
-            gap: 2rem;
-            align-items: center;
-        }
 
+
+        /* Minimal mic / mute controls below wave */
+        .wave-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-top: 1.4rem;
+        }
         .voice-button {
-            width: 48px;
-            height: 48px;
+            width: 38px;
+            height: 38px;
             border-radius: 50%;
-            border: 2px solid rgba(0,212,220,0.35);
-            background: rgba(0,212,220,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.04);
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 1.4rem;
-            color: #00d4dc;
-            position: relative;
+            transition: all 0.25s ease;
+            font-size: 1rem;
+            color: rgba(255,255,255,0.45);
         }
-
         .voice-button:hover {
-            border-color: rgba(0,212,220,0.7);
-            background: rgba(0,212,220,0.14);
-        }
-
-        .voice-button.recording {
-            border-color: rgba(239,68,68,0.8);
-            background: rgba(239,68,68,0.12);
-            color: #ef4444;
-            animation: recording-pulse 1s infinite;
-        }
-
-        @keyframes recording-pulse {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
-            50% { box-shadow: 0 0 0 12px rgba(239,68,68,0); }
-        }
-
-        .status-text {
-            font-size: 1.2rem;
-            color: #999;
-            text-align: center;
-            min-height: 2rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .status-text.listening {
+            border-color: rgba(0,212,220,0.45);
             color: #00d4dc;
-            animation: pulse 1.5s infinite;
+            background: rgba(0,212,220,0.07);
+        }
+        .voice-button.recording {
+            border-color: rgba(239,68,68,0.6);
+            color: #ef4444;
+            background: rgba(239,68,68,0.07);
+            animation: recording-pulse 1.2s infinite;
+        }
+        @keyframes recording-pulse {
+            0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+            50%      { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
         }
 
-        .status-text.processing {
-            color: #c044e8;
+        /* Subtle status dot below controls */
+        .status-text {
+            font-size: 0.72rem;
+            color: rgba(255,255,255,0.22);
+            text-align: center;
+            letter-spacing: 0.04em;
+            min-height: 1.2rem;
+            margin-top: 0.6rem;
         }
-
-        .status-text.success {
-            color: #00ff88;
-        }
-
-        .status-text.error {
-            color: #ff4444;
-        }
-
-        .status-text.warning {
-            color: #ffaa00;
-        }
+        .status-text.listening  { color: rgba(0,212,220,0.6); }
+        .status-text.processing { color: rgba(192,68,232,0.6); }
+        .status-text.success    { color: rgba(0,212,220,0.4); }
+        .status-text.error      { color: rgba(239,68,68,0.6); }
+        .status-text.warning    { color: rgba(255,170,0,0.5); }
 
         .status-text.info {
             color: #4488ff;
@@ -298,225 +282,145 @@
         }
 
         /* Response Area */
+        /* ── Side conversation panel ──────────────────────────────────── */
         .response-area {
-            position: absolute;
-            bottom: 2rem;
-            left: 2rem;
-            right: 2rem;
-            background: rgba(7, 7, 18, 0.97);
-            border: 1px solid rgba(0, 212, 220, 0.25);
-            border-radius: 16px;
-            padding: 1.5rem;
-            backdrop-filter: blur(20px);
-            transform: translateY(calc(100% - 60px));
-            transition: all 0.3s ease;
-            max-height: 50vh;
+            width: 0;
+            min-width: 0;
+            max-width: 360px;
+            display: flex;
+            flex-direction: column;
+            background: rgba(8, 8, 20, 0.92);
+            border-left: 1px solid rgba(255,255,255,0.06);
+            backdrop-filter: blur(16px);
+            transform: translateX(100%);
+            transition: transform 0.35s cubic-bezier(0.4,0,0.2,1),
+                        width 0.35s cubic-bezier(0.4,0,0.2,1);
             overflow: hidden;
-            cursor: pointer;
-            z-index: 100;
         }
-
-        .response-area:hover {
-            transform: translateY(0);
-        }
-
         .response-area.pinned {
-            transform: translateY(0);
-            cursor: default;
+            width: 340px;
+            transform: translateX(0);
         }
 
         .response-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 1rem;
-            border-bottom: 1px solid rgba(0, 212, 220, 0.15);
-            padding-bottom: 0.5rem;
+            padding: 1rem 1.1rem 0.7rem;
+            flex-shrink: 0;
         }
-
         .response-title {
-            color: #00d4dc;
-            font-weight: 600;
-            font-size: 1.1rem;
+            font-size: 0.72rem;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.25);
         }
-
-        .conversation-controls {
-            display: flex;
-            gap: 0.5rem;
-            margin-left: auto;
-        }
-
+        .conversation-controls { display: flex; gap: 0.4rem; }
         .control-button {
-            background: rgba(0, 212, 220, 0.08);
-            border: 1px solid rgba(0, 212, 220, 0.25);
-            color: #00d4dc;
-            border-radius: 6px;
-            padding: 0.25rem 0.5rem;
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.2);
             font-size: 0.75rem;
             cursor: pointer;
-            transition: all 0.2s;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            transition: color 0.2s;
         }
-
-        .control-button:hover {
-            background: rgba(0, 212, 220, 0.15);
-            transform: translateY(-1px);
-        }
+        .control-button:hover { color: rgba(255,255,255,0.55); }
 
         .response-content-container {
-            max-height: calc(40vh - 100px);
+            flex: 1;
             overflow-y: auto;
+            padding: 0 1.1rem;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.08) transparent;
         }
+        .response-content { color: #e2e8f0; }
 
-        .response-content {
-            color: #e2e8f0;
-            line-height: 1.6;
-            margin-bottom: 1rem;
-        }
-
+        /* Text input at bottom of panel */
         .text-input-section {
-            border-top: 1px solid rgba(0, 212, 220, 0.15);
-            padding-top: 1rem;
-            margin-top: 1rem;
+            flex-shrink: 0;
+            padding: 0.8rem 1.1rem 1rem;
+            border-top: 1px solid rgba(255,255,255,0.05);
         }
-
-        .text-input-container {
-            display: flex;
-            gap: 0.75rem;
-            align-items: flex-end;
-        }
-
+        .text-input-container { display: flex; gap: 0.5rem; align-items: flex-end; }
         .text-input {
             flex: 1;
-            background: rgba(0, 0, 0, 0.6);
-            border: 1px solid rgba(0, 212, 220, 0.25);
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.09);
             border-radius: 8px;
-            padding: 0.75rem;
-            color: #ffffff;
-            font-size: 0.95rem;
+            padding: 0.6rem 0.75rem;
+            color: #fff;
+            font-size: 0.88rem;
             line-height: 1.4;
             resize: none;
-            min-height: 40px;
-            max-height: 120px;
-            transition: all 0.3s ease;
+            min-height: 36px;
+            max-height: 100px;
+            transition: border-color 0.2s;
         }
-
         .text-input:focus {
             outline: none;
-            border-color: #00d4dc;
-            box-shadow: 0 0 0 2px rgba(0, 212, 220, 0.15);
+            border-color: rgba(0,212,220,0.35);
         }
-
         .send-button {
-            background: linear-gradient(135deg, #00d4dc 0%, #5b6ef5 100%);
-            border: none;
+            background: rgba(0,212,220,0.12);
+            border: 1px solid rgba(0,212,220,0.25);
             border-radius: 8px;
-            padding: 0.75rem 1rem;
-            color: white;
-            font-weight: 600;
+            padding: 0 0.8rem;
+            color: #00d4dc;
+            font-size: 0.82rem;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.3s ease;
-            min-width: 60px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            height: 36px;
+            transition: all 0.2s;
+            white-space: nowrap;
         }
+        .send-button:hover { background: rgba(0,212,220,0.2); }
+        .send-button:disabled { opacity: 0.35; cursor: not-allowed; }
 
-        .send-button:hover {
-            background: linear-gradient(135deg, #16a34a 0%, #059669 100%);
-            transform: translateY(-1px);
-        }
-
-        .send-button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        /* Conversation Styles */
+        /* ── Message styles ────────────────────────────────────────────── */
         .conversation-welcome {
-            text-align: center;
-            padding: 2rem;
-            color: #999;
+            padding: 2rem 0.5rem;
+            color: rgba(255,255,255,0.22);
+            font-size: 0.85rem;
+            line-height: 1.6;
         }
-
         .conversation-thread {
             display: flex;
             flex-direction: column;
-            gap: 1rem;
+            gap: 0.1rem;
+            padding-bottom: 0.5rem;
         }
 
         .conversation-message {
-            border-radius: 12px;
-            padding: 1rem;
-            max-width: 85%;
-            animation: messageSlideIn 0.3s ease-out;
+            padding: 0.85rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            animation: msgSlide 0.28s ease-out;
+        }
+        @keyframes msgSlide {
+            from { opacity: 0; transform: translateX(14px); }
+            to   { opacity: 1; transform: translateX(0); }
         }
 
-        @keyframes messageSlideIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .user-message {
-            align-self: flex-end;
-            background: rgba(0, 212, 220, 0.12);
-            border-left: 3px solid #00d4dc;
-            border-bottom-right-radius: 4px;
-        }
-
-        .assistant-message {
-            align-self: flex-start;
-            background: rgba(6, 182, 212, 0.15);
-            border-left: 3px solid #c044e8;
-            border-bottom-left-radius: 4px;
-        }
-
-        .message-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 0.5rem;
-            font-size: 0.85rem;
-        }
-
-        .message-role {
-            color: #00d4dc;
+        .message-sender {
+            font-size: 0.67rem;
             font-weight: 600;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+            margin-bottom: 0.3rem;
         }
-
-        .assistant-message .message-role {
-            color: #c044e8;
-        }
-
-        .message-time {
-            color: #666;
-            font-size: 0.75rem;
-        }
+        .user-message   .message-sender { color: rgba(0,212,220,0.55); }
+        .assistant-message .message-sender { color: rgba(192,68,232,0.55); }
 
         .message-content {
-            color: #e2e8f0;
-            line-height: 1.5;
-            font-size: 0.95rem;
+            color: rgba(230,230,240,0.85);
+            line-height: 1.55;
+            font-size: 0.9rem;
         }
+        .user-message .message-content { color: rgba(200,220,230,0.7); }
 
-        .user-message .message-content {
-            font-style: italic;
-        }
-
-        .conversation-stats {
-            text-align: center;
-            margin-top: 1rem;
-            padding-top: 1rem;
-            border-top: 1px solid rgba(0, 212, 220, 0.15);
-            color: #666;
-        }
+        .conversation-stats { display: none; }
 
         /* Responsive */
         @media (max-width: 768px) {
@@ -528,20 +432,17 @@
                 font-size: 2rem;
             }
             
-            .voice-button {
-                width: 70px;
-                height: 70px;
-                font-size: 1.8rem;
-            }
 
-            .response-area {
-                left: 1rem;
-                right: 1rem;
-                max-height: 300px;
-            }
 
-            .voice-container {
-                gap: 2rem;
+            .response-area.pinned {
+                width: 100%;
+                max-width: 100%;
+                border-left: none;
+                border-top: 1px solid rgba(255,255,255,0.06);
+                max-height: 50vh;
+            }
+            .main-content {
+                flex-direction: column;
             }
 
             .waveform-container {
@@ -946,43 +847,35 @@
         <!-- Main Content -->
         <div class="main-content">
             <div class="voice-container">
-                <!-- Waveform Visualization -->
+                <!-- Waveform — click to record -->
                 <div class="waveform-container">
                     <canvas id="waveCanvas" class="wave-canvas" onclick="toggleRecording()" title="Click to speak"></canvas>
                 </div>
 
-                <!-- Control Buttons -->
-                <div class="controls">
-                    <div class="voice-button" id="voiceButton" onclick="toggleRecording()" title="Toggle recording">
-                        🎤
-                    </div>
-                    <div class="voice-button" id="muteBtn" onclick="toggleVoiceResponse()" title="Mute Atom voice" style="font-size:1.3rem;">
-                        🔊
-                    </div>
+                <!-- Minimal controls -->
+                <div class="wave-controls">
+                    <div class="voice-button" id="voiceButton" onclick="toggleRecording()" title="Record">🎤</div>
+                    <div class="voice-button" id="muteBtn" onclick="toggleVoiceResponse()" title="Mute">🔊</div>
                 </div>
 
-                <!-- Status Text -->
-                <div class="status-text" id="statusText">
-                    Ready for voice or text commands...
-                </div>
+                <!-- Whisper status -->
+                <div class="status-text" id="statusText"></div>
             </div>
 
             <!-- Response Area -->
-            <div class="response-area" id="responseArea" onclick="handleResponseAreaClick(event)">
+            <div class="response-area" id="responseArea">
                 <div class="response-header">
-                    <div class="response-title">Atom - Personal AI Assistant</div>
+                    <div class="response-title">Conversation</div>
                     <div class="conversation-controls">
-                        <button class="control-button" onclick="clearConversation()" title="Clear conversation">
-                            🗑️ Clear
-                        </button>
+                        <button class="control-button" onclick="clearConversation()" title="Clear">Clear</button>
+                        <button class="control-button" onclick="closePanel()" title="Close">✕</button>
                     </div>
                 </div>
                 
                 <div class="response-content-container">
                     <div class="response-content" id="responseContent">
                         <div class="conversation-welcome">
-                            <div>👋 Hello! I'm Atom, your personal AI assistant.</div>
-                            <div style="margin-top: 1rem; color: #999;">I can help with daily tasks, planning, questions, and more. Try voice or text!</div>
+                            <div style="color:rgba(255,255,255,0.35);font-size:0.85rem;">Start speaking or type below.</div>
                         </div>
                     </div>
                 </div>
@@ -1680,7 +1573,7 @@
                     conversationId = result.conversationId;
                 }
 
-                addMessageToConversation('user', `🎤 "${result.transcription}"`);
+                addMessageToConversation('user', `"${result.transcription}"`);
                 addMessageToConversation('assistant', result.message);
                 isProcessingWave = false;
                 updateStatus('Voice command processed successfully!', 'success');
@@ -1723,52 +1616,40 @@
             }
 
             let conversationHtml = '<div class="conversation-thread">';
-            
+
             conversationMessages.forEach(message => {
-                const timeStamp = message.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                const typeIcon = message.role === 'user' ? '💬' : '🤖';
-                
+                // Strip emojis from content
+                const cleanContent = (message.content || '')
+                    .replace(/🎤\s*"/g, '"')
+                    .replace(/[\u{1F000}-\u{1FFFF}]|[\u{2600}-\u{27BF}]/gu, '')
+                    .trim();
+
                 if (message.role === 'user') {
                     conversationHtml += `
                         <div class="conversation-message user-message">
-                            <div class="message-header">
-                                <span class="message-role">You ${typeIcon}</span>
-                                <span class="message-time">${timeStamp}</span>
-                            </div>
-                            <div class="message-content">${message.content}</div>
-                        </div>
-                    `;
+                            <div class="message-sender">You</div>
+                            <div class="message-content">${cleanContent}</div>
+                        </div>`;
                 } else {
-                    // Detect confirmation request messages from Atom
-                    const isConfirmation = message.content.includes('📋') ||
-                        message.content.includes('Shall I go ahead') ||
-                        message.content.includes('✅ Shall I') ||
+                    const isConfirmation = message.content.includes('Shall I go ahead') ||
                         message.content.includes('Shall I proceed');
 
                     if (isConfirmation && message.awaitingConfirmation !== false) {
                         conversationHtml += `
                             <div class="conversation-message assistant-message confirm-card" id="confirm-${conversationMessages.indexOf(message)}">
-                                <div class="message-header">
-                                    <span class="message-role">Atom ⚡ Action Required</span>
-                                    <span class="message-time">${timeStamp}</span>
-                                </div>
-                                <div class="message-content confirm-body">${message.content.replace(/\n/g, '<br>')}</div>
+                                <div class="message-sender">Atom — Action needed</div>
+                                <div class="message-content confirm-body">${cleanContent.replace(/\n/g, '<br>')}</div>
                                 <div class="confirm-buttons">
-                                    <button class="confirm-yes-btn" onclick="confirmAction(${conversationMessages.indexOf(message)})">✅ Yes, go ahead</button>
-                                    <button class="confirm-no-btn"  onclick="cancelAction(${conversationMessages.indexOf(message)})">❌ No, cancel</button>
+                                    <button class="confirm-yes-btn" onclick="confirmAction(${conversationMessages.indexOf(message)})">Confirm</button>
+                                    <button class="confirm-no-btn"  onclick="cancelAction(${conversationMessages.indexOf(message)})">Cancel</button>
                                 </div>
-                            </div>
-                        `;
+                            </div>`;
                     } else {
                         conversationHtml += `
                             <div class="conversation-message assistant-message">
-                                <div class="message-header">
-                                    <span class="message-role">Atom 🤖</span>
-                                    <span class="message-time">${timeStamp}</span>
-                                </div>
-                                <div class="message-content">${message.content}</div>
-                            </div>
-                        `;
+                                <div class="message-sender">Atom</div>
+                                <div class="message-content">${cleanContent.replace(/\n/g, '<br>')}</div>
+                            </div>`;
                     }
                 }
             });
@@ -1896,17 +1777,17 @@
             }
         }
 
+        function closePanel() {
+            const responseArea = document.getElementById('responseArea');
+            responseAreaPinned = false;
+            responseArea.classList.remove('pinned');
+        }
+
         function pinResponseArea() {
             const responseArea = document.getElementById('responseArea');
             responseAreaPinned = true;
             responseArea.classList.add('pinned');
-            
-            if (unpinTimeout) {
-                clearTimeout(unpinTimeout);
-            }
-            unpinTimeout = setTimeout(() => {
-                unpinResponseArea();
-            }, 5000);
+            // Panel stays open — user closes via ✕ button or clearConversation
         }
 
         // Profile dropdown functions
