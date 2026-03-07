@@ -14,7 +14,7 @@
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #000000;
+            background: #07070f;
             color: #ffffff;
             overflow: hidden;
         }
@@ -30,12 +30,12 @@
             position: absolute;
             top: 1rem;
             right: 1rem;
-            background: rgba(34, 197, 94, 0.1);
-            border: 1px solid rgba(34, 197, 94, 0.3);
+            background: rgba(0, 212, 220, 0.08);
+            border: 1px solid rgba(0, 212, 220, 0.25);
             border-radius: 20px;
             padding: 0.5rem 1rem;
             font-size: 0.8rem;
-            color: #22c55e;
+            color: #00d4dc;
             display: flex;
             align-items: center;
             gap: 0.5rem;
@@ -46,12 +46,12 @@
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: #22c55e;
+            background: #00d4dc;
             animation: pulse 2s infinite;
         }
 
         .memory-status.connected .memory-indicator {
-            background: #22c55e;
+            background: #00d4dc;
         }
 
         .memory-status.error .memory-indicator {
@@ -65,9 +65,9 @@
             justify-content: space-between;
             padding: 2rem;
             gap: 1rem;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(7, 7, 18, 0.85);
             backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(34, 197, 94, 0.2);
+            border-bottom: 1px solid rgba(0, 212, 220, 0.15);
         }
 
         .header-left {
@@ -92,7 +92,7 @@
 
         .back-button {
             font-size: 2rem;
-            color: #22c55e;
+            color: #00d4dc;
             cursor: pointer;
             transition: all 0.3s ease;
             padding: 0.5rem;
@@ -100,14 +100,14 @@
         }
 
         .back-button:hover {
-            background: rgba(34, 197, 94, 0.1);
+            background: rgba(0, 212, 220, 0.08);
             transform: scale(1.1);
         }
 
         .title {
             font-size: 3rem;
             font-weight: 300;
-            background: linear-gradient(135deg, #22c55e 0%, #10b981 50%, #06b6d4 100%);
+            background: linear-gradient(135deg, #00d4dc 0%, #5b6ef5 50%, #c044e8 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -123,21 +123,21 @@
             width: 50px;
             height: 50px;
             border-radius: 50%;
-            border: 2px solid #22c55e;
-            background: rgba(34, 197, 94, 0.1);
+            border: 2px solid #00d4dc;
+            background: rgba(0, 212, 220, 0.08);
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             transition: all 0.3s ease;
             font-size: 1.2rem;
-            color: #22c55e;
+            color: #00d4dc;
         }
 
         .profile-button:hover {
-            background: rgba(34, 197, 94, 0.2);
+            background: rgba(0, 212, 220, 0.15);
             transform: scale(1.05);
-            box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+            box-shadow: 0 0 20px rgba(0, 212, 220, 0.25);
         }
 
         .dropdown-menu {
@@ -145,9 +145,9 @@
             top: 60px;
             right: 0;
             width: 250px;
-            background: rgba(0, 0, 0, 0.95);
+            background: rgba(7, 7, 18, 0.97);
             backdrop-filter: blur(20px);
-            border: 1px solid rgba(34, 197, 94, 0.3);
+            border: 1px solid rgba(0, 212, 220, 0.25);
             border-radius: 12px;
             padding: 1rem;
             opacity: 0;
@@ -176,8 +176,8 @@
         }
 
         .dropdown-item:hover {
-            background: rgba(34, 197, 94, 0.1);
-            color: #22c55e;
+            background: rgba(0, 212, 220, 0.08);
+            color: #00d4dc;
         }
 
         /* Main Content */
@@ -203,28 +203,18 @@
 
         .waveform-container {
             width: 100%;
-            height: 300px;
+            height: 200px;
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
+            margin-bottom: 1.5rem;
         }
-
-        .waveform-svg {
+        .wave-canvas {
             width: 100%;
             height: 100%;
-        }
-
-        .waveform-path {
-            fill: none;
-            stroke: url(#waveGradient);
-            stroke-width: 3;
-            filter: url(#glow);
-        }
-
-        .waveform-fill {
-            fill: url(#waveGradientFill);
-            opacity: 0.3;
+            display: block;
+            border-radius: 16px;
         }
 
         .controls {
@@ -238,7 +228,7 @@
             height: 80px;
             border-radius: 50%;
             border: none;
-            background: linear-gradient(135deg, #22c55e 0%, #10b981 30%, #06b6d4 70%, #0891b2 100%);
+            background: linear-gradient(135deg, #00d4dc 0%, #5b6ef5 30%, #c044e8 70%, #e0359a 100%);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -279,12 +269,12 @@
         }
 
         .status-text.listening {
-            color: #22c55e;
+            color: #00d4dc;
             animation: pulse 1.5s infinite;
         }
 
         .status-text.processing {
-            color: #06b6d4;
+            color: #c044e8;
         }
 
         .status-text.success {
@@ -314,8 +304,8 @@
             bottom: 2rem;
             left: 2rem;
             right: 2rem;
-            background: rgba(0, 0, 0, 0.95);
-            border: 1px solid rgba(34, 197, 94, 0.3);
+            background: rgba(7, 7, 18, 0.97);
+            border: 1px solid rgba(0, 212, 220, 0.25);
             border-radius: 16px;
             padding: 1.5rem;
             backdrop-filter: blur(20px);
@@ -341,12 +331,12 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 1rem;
-            border-bottom: 1px solid rgba(34, 197, 94, 0.2);
+            border-bottom: 1px solid rgba(0, 212, 220, 0.15);
             padding-bottom: 0.5rem;
         }
 
         .response-title {
-            color: #22c55e;
+            color: #00d4dc;
             font-weight: 600;
             font-size: 1.1rem;
         }
@@ -358,9 +348,9 @@
         }
 
         .control-button {
-            background: rgba(34, 197, 94, 0.1);
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            color: #22c55e;
+            background: rgba(0, 212, 220, 0.08);
+            border: 1px solid rgba(0, 212, 220, 0.25);
+            color: #00d4dc;
             border-radius: 6px;
             padding: 0.25rem 0.5rem;
             font-size: 0.75rem;
@@ -369,7 +359,7 @@
         }
 
         .control-button:hover {
-            background: rgba(34, 197, 94, 0.2);
+            background: rgba(0, 212, 220, 0.15);
             transform: translateY(-1px);
         }
 
@@ -385,7 +375,7 @@
         }
 
         .text-input-section {
-            border-top: 1px solid rgba(34, 197, 94, 0.2);
+            border-top: 1px solid rgba(0, 212, 220, 0.15);
             padding-top: 1rem;
             margin-top: 1rem;
         }
@@ -399,7 +389,7 @@
         .text-input {
             flex: 1;
             background: rgba(0, 0, 0, 0.6);
-            border: 1px solid rgba(34, 197, 94, 0.3);
+            border: 1px solid rgba(0, 212, 220, 0.25);
             border-radius: 8px;
             padding: 0.75rem;
             color: #ffffff;
@@ -413,12 +403,12 @@
 
         .text-input:focus {
             outline: none;
-            border-color: #22c55e;
-            box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+            border-color: #00d4dc;
+            box-shadow: 0 0 0 2px rgba(0, 212, 220, 0.15);
         }
 
         .send-button {
-            background: linear-gradient(135deg, #22c55e 0%, #10b981 100%);
+            background: linear-gradient(135deg, #00d4dc 0%, #5b6ef5 100%);
             border: none;
             border-radius: 8px;
             padding: 0.75rem 1rem;
@@ -477,15 +467,15 @@
 
         .user-message {
             align-self: flex-end;
-            background: rgba(34, 197, 94, 0.15);
-            border-left: 3px solid #22c55e;
+            background: rgba(0, 212, 220, 0.12);
+            border-left: 3px solid #00d4dc;
             border-bottom-right-radius: 4px;
         }
 
         .assistant-message {
             align-self: flex-start;
             background: rgba(6, 182, 212, 0.15);
-            border-left: 3px solid #06b6d4;
+            border-left: 3px solid #c044e8;
             border-bottom-left-radius: 4px;
         }
 
@@ -498,12 +488,12 @@
         }
 
         .message-role {
-            color: #22c55e;
+            color: #00d4dc;
             font-weight: 600;
         }
 
         .assistant-message .message-role {
-            color: #06b6d4;
+            color: #c044e8;
         }
 
         .message-time {
@@ -525,7 +515,7 @@
             text-align: center;
             margin-top: 1rem;
             padding-top: 1rem;
-            border-top: 1px solid rgba(34, 197, 94, 0.2);
+            border-top: 1px solid rgba(0, 212, 220, 0.15);
             color: #666;
         }
 
@@ -577,7 +567,7 @@
         .sidebar {
             position: fixed; top: 0; left: -300px; bottom: 0;
             width: 280px;
-            background: #0a0a0a;
+            background: #07070f;
             border-right: 1px solid rgba(34,197,94,0.2);
             z-index: 500;
             display: flex; flex-direction: column;
@@ -592,7 +582,7 @@
             border-bottom: 1px solid rgba(34,197,94,0.15);
             flex-shrink: 0;
         }
-        .sidebar-logo { font-size: 1.1rem; font-weight: 700; color: #22c55e; letter-spacing: 0.05em; }
+        .sidebar-logo { font-size: 1.1rem; font-weight: 700; color: #00d4dc; letter-spacing: 0.05em; }
         .sidebar-close {
             background: none; border: 1px solid rgba(255,255,255,0.15); color: #aaa;
             border-radius: 6px; width: 28px; height: 28px;
@@ -622,7 +612,7 @@
         }
         .nav-item:hover { color: #fff; background: rgba(255,255,255,0.04); }
         .nav-item.active {
-            color: #22c55e; border-left-color: #22c55e;
+            color: #00d4dc; border-left-color: #00d4dc;
             background: rgba(34,197,94,0.06);
         }
         .nav-item .nav-icon { font-size: 1rem; width: 1.2rem; text-align: center; }
@@ -639,7 +629,7 @@
             background: #555; flex-shrink: 0;
             transition: background 0.3s;
         }
-        .s-dot.green { background: #22c55e; }
+        .s-dot.green { background: #00d4dc; }
         .s-dot.red   { background: #ef4444; }
 
         /* ── Panel views ──────────────────────────── */
@@ -655,10 +645,10 @@
             border-bottom: 1px solid rgba(34,197,94,0.12);
             flex-shrink: 0;
         }
-        .panel-title { font-size: 1.05rem; font-weight: 600; color: #22c55e; }
+        .panel-title { font-size: 1.05rem; font-weight: 600; color: #00d4dc; }
         .panel-action-btn {
             background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3);
-            color: #22c55e; border-radius: 8px; padding: 0.35rem 0.85rem;
+            color: #00d4dc; border-radius: 8px; padding: 0.35rem 0.85rem;
             font-size: 0.82rem; cursor: pointer; transition: all 0.2s;
         }
         .panel-action-btn:hover { background: rgba(34,197,94,0.22); }
@@ -678,7 +668,7 @@
             transition: all 0.18s ease;
         }
         .email-card:hover { border-color: rgba(34,197,94,0.35); background: rgba(34,197,94,0.04); }
-        .email-card.unread { border-left: 3px solid #22c55e; }
+        .email-card.unread { border-left: 3px solid #00d4dc; }
         .email-row1 { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.25rem; }
         .email-from { font-size: 0.88rem; font-weight: 600; color: #fff; }
         .email-time  { font-size: 0.75rem; color: #666; }
@@ -704,7 +694,7 @@
             width: 100%; padding: 0.75rem;
             background: rgba(34,197,94,0.15);
             border: 1px solid rgba(34,197,94,0.4);
-            color: #22c55e; border-radius: 8px;
+            color: #00d4dc; border-radius: 8px;
             font-size: 0.92rem; font-weight: 600;
             cursor: pointer; transition: all 0.2s;
         }
@@ -718,7 +708,7 @@
         }
         .cal-event:last-child { border-bottom: none; }
         .cal-event-time {
-            font-size: 0.78rem; color: #22c55e; font-weight: 600;
+            font-size: 0.78rem; color: #00d4dc; font-weight: 600;
             white-space: nowrap; padding-top: 0.1rem; min-width: 55px;
         }
         .cal-event-title { font-size: 0.88rem; color: #ddd; }
@@ -735,7 +725,7 @@
         .convo-item:hover { border-color: rgba(34,197,94,0.3); }
         .convo-date  { font-size: 0.75rem; color: #666; margin-bottom: 0.2rem; }
         .convo-preview { font-size: 0.84rem; color: #ccc; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-        .convo-count  { font-size: 0.74rem; color: #22c55e; margin-top: 0.2rem; }
+        .convo-count  { font-size: 0.74rem; color: #00d4dc; margin-top: 0.2rem; }
 
         /* ── Connection cards ─────────────────────── */
         .conn-card {
@@ -752,7 +742,7 @@
         .conn-badge {
             font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 20px; font-weight: 600;
         }
-        .conn-badge.ok   { background: rgba(34,197,94,0.15);  color: #22c55e; }
+        .conn-badge.ok   { background: rgba(34,197,94,0.15);  color: #00d4dc; }
         .conn-badge.warn { background: rgba(245,158,11,0.15); color: #f59e0b; }
         .conn-badge.err  { background: rgba(239,68,68,0.15);  color: #ef4444; }
 
@@ -785,7 +775,7 @@
         .confirm-yes-btn {
             background: rgba(34,197,94,0.2);
             border: 1px solid rgba(34,197,94,0.5);
-            color: #22c55e;
+            color: #00d4dc;
         }
         .confirm-yes-btn:hover { background: rgba(34,197,94,0.35); }
         .confirm-no-btn {
@@ -816,7 +806,7 @@
             padding: 0.75rem 0; text-align: center;
         }
         .panel-msg.err { color: #ef4444; }
-        .panel-msg.ok  { color: #22c55e; }
+        .panel-msg.ok  { color: #00d4dc; }
     </style>
 </head>
 <body>
@@ -959,31 +949,7 @@
             <div class="voice-container">
                 <!-- Waveform Visualization -->
                 <div class="waveform-container">
-                    <svg class="waveform-svg" id="waveformSvg" viewBox="0 0 800 300">
-                        <defs>
-                            <linearGradient id="waveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" style="stop-color:#22c55e;stop-opacity:1" />
-                                <stop offset="50%" style="stop-color:#10b981;stop-opacity:1" />
-                                <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:1" />
-                            </linearGradient>
-                            
-                            <linearGradient id="waveGradientFill" x1="0%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" style="stop-color:#22c55e;stop-opacity:0.6" />
-                                <stop offset="100%" style="stop-color:#22c55e;stop-opacity:0.1" />
-                            </linearGradient>
-                            
-                            <filter id="glow">
-                                <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-                                <feMerge> 
-                                    <feMergeNode in="coloredBlur"/>
-                                    <feMergeNode in="SourceGraphic"/>
-                                </feMerge>
-                            </filter>
-                        </defs>
-                        
-                        <path id="waveformPath" class="waveform-path" d="M 0 150 Q 200 150 400 150 Q 600 150 800 150"></path>
-                        <path id="waveformFill" class="waveform-fill" d="M 0 150 Q 200 150 400 150 Q 600 150 800 150 L 800 300 L 0 300 Z"></path>
-                    </svg>
+                    <canvas id="waveCanvas" class="wave-canvas"></canvas>
                 </div>
 
                 <!-- Control Buttons -->
@@ -1292,7 +1258,7 @@
                 <!-- Tab switcher -->
                 <div style="display:flex;gap:0;margin-bottom:1rem;border:1px solid rgba(255,255,255,0.12);border-radius:6px;overflow:hidden;">
                     <button id="kbTabText" onclick="switchKbTab('text')"
-                        style="flex:1;padding:0.4rem;font-size:0.78rem;background:rgba(34,197,94,0.18);color:#22c55e;border:none;cursor:pointer;font-family:inherit;">
+                        style="flex:1;padding:0.4rem;font-size:0.78rem;background:rgba(34,197,94,0.18);color:#00d4dc;border:none;cursor:pointer;font-family:inherit;">
                         ✏️ Write
                     </button>
                     <button id="kbTabFile" onclick="switchKbTab('file')"
@@ -1655,6 +1621,7 @@
                 
                 updateRecordingUI(true);
                 updateStatus('🎤 Listening... Speak now! (Click to stop)', 'listening');
+                connectAudioAnalyser(stream);
                 
                 console.log('✅ Recording started successfully');
                 
@@ -1674,6 +1641,8 @@
                 const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
                 if (audioBlob.size < 1000) throw new Error('Speak at least 1 second');
 
+                disconnectAudioAnalyser();
+                isProcessingWave = true;
                 updateStatus('Transcribing and processing...', 'processing');
 
                 const formData = new FormData();
@@ -1705,6 +1674,7 @@
 
                 addMessageToConversation('user', `🎤 "${result.transcription}"`);
                 addMessageToConversation('assistant', result.message);
+                isProcessingWave = false;
                 updateStatus('Voice command processed successfully!', 'success');
                 pinResponseArea();
             } catch (error) {
@@ -1942,56 +1912,185 @@
         }
 
         // Waveform animation
-        function initializeWaveform() {
-            for (let i = 0; i < numPoints; i++) {
-                waveformPoints.push({
-                    x: (i / (numPoints - 1)) * 800,
-                    y: 150 + Math.sin(i * 0.3) * 10,
-                    amplitude: 10,
-                    frequency: 0.3 + Math.random() * 0.2
-                });
+        // ── Canvas Reactive Waveform ──────────────────────────────────
+        let waveCanvas, waveCtx, waveW, waveH;
+        let audioCtx, analyser, audioSource, audioDataArray;
+        let wavePhase = 0;
+        let waveEnergy = 0; // 0–1 smoothed energy level
+        let isProcessingWave = false;
+
+        // Palette from the reference image: cyan → blue → purple → pink
+        const WAVE_COLORS = [
+            { pos: 0,    r: 0,   g: 212, b: 220 },  // #00d4dc — teal/cyan
+            { pos: 0.25, r: 60,  g: 100, b: 255 },  // #3c64ff — blue
+            { pos: 0.55, r: 130, g: 60,  b: 240 },  // #823cf0 — purple
+            { pos: 0.78, r: 190, g: 50,  b: 210 },  // #be32d2 — violet-pink
+            { pos: 1,    r: 230, g: 50,  b: 130 },  // #e63282 — pink/magenta
+        ];
+
+        function interpolateColor(t) {
+            for (let i = 0; i < WAVE_COLORS.length - 1; i++) {
+                const c0 = WAVE_COLORS[i], c1 = WAVE_COLORS[i + 1];
+                if (t >= c0.pos && t <= c1.pos) {
+                    const f = (t - c0.pos) / (c1.pos - c0.pos);
+                    return {
+                        r: Math.round(c0.r + (c1.r - c0.r) * f),
+                        g: Math.round(c0.g + (c1.g - c0.g) * f),
+                        b: Math.round(c0.b + (c1.b - c0.b) * f),
+                    };
+                }
             }
+            return WAVE_COLORS[WAVE_COLORS.length - 1];
+        }
+
+        function initializeWaveform() {
+            waveCanvas = document.getElementById('waveCanvas');
+            if (!waveCanvas) return;
+            waveCtx = waveCanvas.getContext('2d');
+            resizeWaveCanvas();
+            window.addEventListener('resize', resizeWaveCanvas);
+        }
+
+        function resizeWaveCanvas() {
+            if (!waveCanvas) return;
+            const dpr = window.devicePixelRatio || 1;
+            const rect = waveCanvas.getBoundingClientRect();
+            waveCanvas.width  = rect.width  * dpr;
+            waveCanvas.height = rect.height * dpr;
+            waveCtx.scale(dpr, dpr);
+            waveW = rect.width;
+            waveH = rect.height;
+        }
+
+        function connectAudioAnalyser(stream) {
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 256;
+                analyser.smoothingTimeConstant = 0.8;
+                audioDataArray = new Uint8Array(analyser.frequencyBinCount);
+                audioSource = audioCtx.createMediaStreamSource(stream);
+                audioSource.connect(analyser);
+            } catch (e) { console.warn('Audio analyser error:', e); }
+        }
+
+        function disconnectAudioAnalyser() {
+            try {
+                if (audioSource) { audioSource.disconnect(); audioSource = null; }
+            } catch (e) {}
+        }
+
+        function getAudioEnergy() {
+            if (!analyser || !audioDataArray) return 0;
+            analyser.getByteFrequencyData(audioDataArray);
+            const sum = audioDataArray.reduce((a, b) => a + b, 0);
+            return (sum / audioDataArray.length) / 255;
+        }
+
+        function drawWave() {
+            if (!waveCtx || !waveW || !waveH) return;
+
+            waveCtx.clearRect(0, 0, waveW, waveH);
+            const cx = waveW / 2, cy = waveH / 2;
+
+            // Update energy
+            if (isRecording) {
+                const raw = getAudioEnergy();
+                waveEnergy += (raw * 1.4 - waveEnergy) * 0.18;
+            } else if (isProcessingWave) {
+                waveEnergy += (0.5 - waveEnergy) * 0.06;
+            } else {
+                waveEnergy += (0.08 - waveEnergy) * 0.04;
+            }
+            waveEnergy = Math.max(0.04, Math.min(1, waveEnergy));
+
+            wavePhase += isRecording ? 0.06 : isProcessingWave ? 0.045 : 0.018;
+
+            const LAYERS = [
+                { amp: 0.80, freq: 1.0,  phShift: 0,    alpha: 0.95, width: 2.8 },
+                { amp: 0.55, freq: 1.7,  phShift: 1.1,  alpha: 0.55, width: 1.8 },
+                { amp: 0.38, freq: 2.6,  phShift: 2.4,  alpha: 0.30, width: 1.2 },
+                { amp: 0.22, freq: 3.8,  phShift: 0.7,  alpha: 0.18, width: 0.9 },
+            ];
+
+            const maxAmp = cy * 0.72 * waveEnergy;
+
+            LAYERS.forEach((layer, li) => {
+                const N = 300;
+                const pts = [];
+
+                for (let i = 0; i <= N; i++) {
+                    const t = i / N;
+                    const x = t * waveW;
+
+                    // Envelope: tapers to 0 at edges, peaks in centre
+                    const env = Math.sin(t * Math.PI);
+
+                    const y = cy
+                        + Math.sin(t * Math.PI * 2 * layer.freq + wavePhase + layer.phShift) * maxAmp * layer.amp * env
+                        + Math.sin(t * Math.PI * 4.3 * layer.freq + wavePhase * 0.7 + layer.phShift) * maxAmp * 0.18 * layer.amp * env
+                        + Math.sin(t * Math.PI * 7.1 * layer.freq + wavePhase * 1.3 + layer.phShift) * maxAmp * 0.09 * layer.amp * env;
+
+                    pts.push({ x, y, t });
+                }
+
+                // Draw glow fill beneath each wave
+                const fillGrad = waveCtx.createLinearGradient(0, 0, waveW, 0);
+                WAVE_COLORS.forEach(c => {
+                    fillGrad.addColorStop(c.pos, `rgba(${c.r},${c.g},${c.b},${layer.alpha * 0.12})`);
+                });
+
+                waveCtx.beginPath();
+                waveCtx.moveTo(pts[0].x, pts[0].y);
+                for (let i = 1; i < pts.length - 1; i++) {
+                    const mx = (pts[i].x + pts[i + 1].x) / 2;
+                    const my = (pts[i].y + pts[i + 1].y) / 2;
+                    waveCtx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+                }
+                waveCtx.lineTo(pts[pts.length - 1].x, cy);
+                waveCtx.lineTo(pts[0].x, cy);
+                waveCtx.closePath();
+                waveCtx.fillStyle = fillGrad;
+                waveCtx.fill();
+
+                // Draw the wave line using per-segment colour
+                for (let i = 0; i < pts.length - 1; i++) {
+                    const t0 = pts[i].t, t1 = pts[i + 1].t;
+                    const c0 = interpolateColor(t0), c1 = interpolateColor(t1);
+                    const segGrad = waveCtx.createLinearGradient(pts[i].x, 0, pts[i + 1].x, 0);
+                    segGrad.addColorStop(0, `rgba(${c0.r},${c0.g},${c0.b},${layer.alpha})`);
+                    segGrad.addColorStop(1, `rgba(${c1.r},${c1.g},${c1.b},${layer.alpha})`);
+
+                    // Glow pass
+                    waveCtx.beginPath();
+                    waveCtx.moveTo(pts[i].x, pts[i].y);
+                    waveCtx.lineTo(pts[i + 1].x, pts[i + 1].y);
+                    waveCtx.strokeStyle = segGrad;
+                    waveCtx.lineWidth   = layer.width + 3;
+                    waveCtx.globalAlpha = layer.alpha * 0.18;
+                    waveCtx.stroke();
+
+                    // Sharp line
+                    waveCtx.lineWidth   = layer.width;
+                    waveCtx.globalAlpha = 1;
+                    waveCtx.stroke();
+                }
+            });
+
+            waveCtx.globalAlpha = 1;
         }
 
         function startWaveformAnimation() {
-            function animate() {
-                animationTime += 0.03;
-                
-                waveformPoints.forEach((point, index) => {
-                    const baseAmplitude = isRecording ? 30 + Math.random() * 40 : 10;
-                    const wave = Math.sin(animationTime * 2 + index * point.frequency) * baseAmplitude;
-                    point.y = 150 + wave;
-                });
-
-                const pathData = createSmoothPath(waveformPoints);
-                const fillData = createSmoothPath(waveformPoints) + ' L 800 300 L 0 300 Z';
-                
-                document.getElementById('waveformPath').setAttribute('d', pathData);
-                document.getElementById('waveformFill').setAttribute('d', fillData);
-                
-                waveformAnimationId = requestAnimationFrame(animate);
+            function loop() {
+                drawWave();
+                waveformAnimationId = requestAnimationFrame(loop);
             }
-            animate();
+            loop();
         }
 
-        function createSmoothPath(points) {
-            if (points.length < 2) return '';
-            
-            let path = `M ${points[0].x} ${points[0].y}`;
-            
-            for (let i = 1; i < points.length - 1; i++) {
-                const currentPoint = points[i];
-                const nextPoint = points[i + 1];
-                const controlX = (currentPoint.x + nextPoint.x) / 2;
-                
-                path += ` Q ${currentPoint.x} ${currentPoint.y} ${controlX} ${(currentPoint.y + nextPoint.y) / 2}`;
-            }
-            
-            const lastPoint = points[points.length - 1];
-            path += ` Q ${lastPoint.x} ${lastPoint.y} ${lastPoint.x} ${lastPoint.y}`;
-            
-            return path;
-        }
+        // Keep legacy stubs so other code doesn't break
+        function initializeWaveformLegacy() {}
+        function createSmoothPath() { return ''; }
 
         // Test backend
         async function testBackend() {
@@ -2343,9 +2442,9 @@
             document.getElementById('kbTabTextBody').style.display = tab === 'text' ? '' : 'none';
             document.getElementById('kbTabFileBody').style.display = tab === 'file' ? '' : 'none';
             document.getElementById('kbTabText').style.background = tab === 'text' ? 'rgba(34,197,94,0.18)' : 'transparent';
-            document.getElementById('kbTabText').style.color       = tab === 'text' ? '#22c55e' : '#94a3b8';
+            document.getElementById('kbTabText').style.color       = tab === 'text' ? '#00d4dc' : '#94a3b8';
             document.getElementById('kbTabFile').style.background = tab === 'file' ? 'rgba(34,197,94,0.18)' : 'transparent';
-            document.getElementById('kbTabFile').style.color       = tab === 'file' ? '#22c55e' : '#94a3b8';
+            document.getElementById('kbTabFile').style.color       = tab === 'file' ? '#00d4dc' : '#94a3b8';
         }
 
         async function loadKnowledgeBase() {
@@ -2363,7 +2462,7 @@
                     chips.innerHTML = ['All', ...cats].map(cat => {
                         const active = (cat === 'All' && !kbActiveCat) || cat === kbActiveCat;
                         return `<button onclick="setKbCategory('${cat === 'All' ? '' : cat}')"
-                            style="padding:0.2rem 0.55rem;font-size:0.73rem;border-radius:99px;border:1px solid ${active ? '#22c55e' : 'rgba(255,255,255,0.12)'};background:${active ? 'rgba(34,197,94,0.18)' : 'transparent'};color:${active ? '#22c55e' : '#94a3b8'};cursor:pointer;font-family:inherit;">${esc(cat)}</button>`;
+                            style="padding:0.2rem 0.55rem;font-size:0.73rem;border-radius:99px;border:1px solid ${active ? '#00d4dc' : 'rgba(255,255,255,0.12)'};background:${active ? 'rgba(34,197,94,0.18)' : 'transparent'};color:${active ? '#00d4dc' : '#94a3b8'};cursor:pointer;font-family:inherit;">${esc(cat)}</button>`;
                     }).join('');
                 }
             } catch {}
@@ -2394,7 +2493,7 @@
                          onmouseover="this.style.background='rgba(255,255,255,0.06)'"
                          onmouseout="this.style.background='rgba(255,255,255,0.03)'">
                         <div style="font-weight:600;color:#e2e8f0;margin-bottom:0.15rem;">${esc(e.title)}</div>
-                        ${e.category ? `<span style="font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:99px;background:rgba(34,197,94,0.12);color:#22c55e;">${esc(e.category)}</span>` : ''}
+                        ${e.category ? `<span style="font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:99px;background:rgba(34,197,94,0.12);color:#00d4dc;">${esc(e.category)}</span>` : ''}
                         <div style="font-size:0.75rem;color:#94a3b8;margin-top:0.25rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(e.content.slice(0,120))}</div>
                         <div style="font-size:0.68rem;color:#475569;margin-top:0.2rem;">${esc(e.source)} · ${new Date(e.createdAt).toLocaleDateString()}</div>
                     </div>`).join('');
@@ -2419,7 +2518,7 @@
                 const body = document.getElementById('kbDetailBody');
                 body.innerHTML = `
                     <div style="margin-bottom:0.75rem;">
-                        ${e.category ? `<span style="font-size:0.72rem;padding:0.15rem 0.5rem;border-radius:99px;background:rgba(34,197,94,0.12);color:#22c55e;margin-right:0.4rem;">${esc(e.category)}</span>` : ''}
+                        ${e.category ? `<span style="font-size:0.72rem;padding:0.15rem 0.5rem;border-radius:99px;background:rgba(34,197,94,0.12);color:#00d4dc;margin-right:0.4rem;">${esc(e.category)}</span>` : ''}
                         <span style="font-size:0.72rem;color:#64748b;">${esc(e.source)} · ${new Date(e.createdAt).toLocaleDateString()}</span>
                         ${e.fileName ? `<span style="font-size:0.7rem;color:#64748b;margin-left:0.4rem;">📎 ${esc(e.fileName)}</span>` : ''}
                     </div>
@@ -2703,14 +2802,14 @@
 
                 if (data.connected) {
                     statusEl.textContent    = '✅ Connected';
-                    statusEl.style.color    = '#22c55e';
+                    statusEl.style.color    = '#00d4dc';
                     emailEl.textContent     = data.emailAddress ?? '';
                     connectBtn.textContent  = '🔄 Reconnect (switch account)';
                     disconnectBtn.style.display = 'block';
                     setupNote.style.display = 'none';
                     if (calStatusEl) {
                         calStatusEl.textContent = '✅ Active (via Gmail OAuth)';
-                        calStatusEl.style.color = '#22c55e';
+                        calStatusEl.style.color = '#00d4dc';
                     }
                 } else {
                     statusEl.textContent    = '❌ Not connected';
@@ -2831,7 +2930,7 @@
         .settings-overlay.visible { opacity: 1; visibility: visible; }
 
         .settings-panel {
-            background: #0a0a0a;
+            background: #07070f;
             border: 1px solid rgba(34,197,94,0.3);
             border-radius: 16px;
             padding: 2rem;
@@ -2850,7 +2949,7 @@
             padding-bottom: 1rem;
         }
 
-        .settings-title { font-size: 1.2rem; font-weight: 600; color: #22c55e; }
+        .settings-title { font-size: 1.2rem; font-weight: 600; color: #00d4dc; }
 
         .settings-close {
             background: none; border: 1px solid rgba(255,255,255,0.2);
@@ -2869,7 +2968,7 @@
         .settings-section-title {
             font-size: 0.85rem; font-weight: 600;
             text-transform: uppercase; letter-spacing: 0.08em;
-            color: #22c55e; margin-bottom: 0.75rem;
+            color: #00d4dc; margin-bottom: 0.75rem;
         }
 
         .settings-row {
@@ -2882,7 +2981,7 @@
         .settings-btn {
             background: rgba(34,197,94,0.15);
             border: 1px solid rgba(34,197,94,0.4);
-            color: #22c55e; border-radius: 8px;
+            color: #00d4dc; border-radius: 8px;
             padding: 0.5rem 1rem; cursor: pointer;
             font-size: 0.85rem; transition: all 0.2s; width: 100%; margin-top: 0.5rem;
         }
@@ -2922,7 +3021,7 @@
                 </div>
                 <div class="settings-row">
                     <span class="settings-label">Send from</span>
-                    <span class="settings-value" id="gmailEmailDisplay" style="color:#22c55e;">—</span>
+                    <span class="settings-value" id="gmailEmailDisplay" style="color:#00d4dc;">—</span>
                 </div>
 
                 <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
@@ -2973,11 +3072,11 @@
                 </div>
                 <div class="settings-row">
                     <span class="settings-label">AI Model</span>
-                    <span class="settings-value" style="color:#22c55e;">Claude (Anthropic)</span>
+                    <span class="settings-value" style="color:#00d4dc;">Claude (Anthropic)</span>
                 </div>
                 <div class="settings-row">
                     <span class="settings-label">Voice input</span>
-                    <span class="settings-value" style="color:#22c55e;">Whisper (OpenAI)</span>
+                    <span class="settings-value" style="color:#00d4dc;">Whisper (OpenAI)</span>
                 </div>
             </div>
         </div>
