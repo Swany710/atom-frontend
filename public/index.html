@@ -203,7 +203,7 @@
 
         .waveform-container {
             width: 100%;
-            height: 200px;
+            height: 240px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -215,6 +215,7 @@
             height: 100%;
             display: block;
             border-radius: 16px;
+            cursor: pointer;
         }
 
         .controls {
@@ -224,38 +225,36 @@
         }
 
         .voice-button {
-            width: 80px;
-            height: 80px;
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
-            border: none;
-            background: linear-gradient(135deg, #00d4dc 0%, #5b6ef5 30%, #c044e8 70%, #e0359a 100%);
+            border: 2px solid rgba(0,212,220,0.35);
+            background: rgba(0,212,220,0.08);
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             transition: all 0.3s ease;
-            font-size: 2rem;
-            color: transparent;
-            box-shadow: 
-                0 4px 8px rgba(0, 0, 0, 0.3),
-                inset 0 1px 0 rgba(255, 255, 255, 0.3),
-                inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+            font-size: 1.4rem;
+            color: #00d4dc;
             position: relative;
         }
 
         .voice-button:hover {
-            transform: scale(1.05);
+            border-color: rgba(0,212,220,0.7);
+            background: rgba(0,212,220,0.14);
         }
 
         .voice-button.recording {
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 30%, #b91c1c 70%, #991b1b 100%);
+            border-color: rgba(239,68,68,0.8);
+            background: rgba(239,68,68,0.12);
+            color: #ef4444;
             animation: recording-pulse 1s infinite;
-            transform: scale(1.1);
         }
 
         @keyframes recording-pulse {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.7); }
-            50% { box-shadow: 0 0 0 20px rgba(255, 107, 53, 0); }
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+            50% { box-shadow: 0 0 0 12px rgba(239,68,68,0); }
         }
 
         .status-text {
@@ -949,12 +948,13 @@
             <div class="voice-container">
                 <!-- Waveform Visualization -->
                 <div class="waveform-container">
-                    <canvas id="waveCanvas" class="wave-canvas"></canvas>
+                    <canvas id="waveCanvas" class="wave-canvas" onclick="toggleRecording()" title="Click to speak"></canvas>
                 </div>
 
                 <!-- Control Buttons -->
                 <div class="controls">
-                    <div class="voice-button" id="voiceButton" onclick="toggleRecording()">
+                    <div class="voice-button" id="voiceButton" onclick="toggleRecording()" title="Toggle recording">
+                        🎤
                     </div>
                 </div>
 
@@ -1991,95 +1991,95 @@
             if (!waveCtx || !waveW || !waveH) return;
 
             waveCtx.clearRect(0, 0, waveW, waveH);
-            const cx = waveW / 2, cy = waveH / 2;
+            const cy = waveH / 2;
 
-            // Update energy
+            // ── Energy: idle keeps a visible wave (0.38), scales up when active ──
+            let targetEnergy;
             if (isRecording) {
                 const raw = getAudioEnergy();
-                waveEnergy += (raw * 1.4 - waveEnergy) * 0.18;
+                targetEnergy = 0.38 + raw * 0.62;
             } else if (isProcessingWave) {
-                waveEnergy += (0.5 - waveEnergy) * 0.06;
+                targetEnergy = 0.54;
             } else {
-                waveEnergy += (0.08 - waveEnergy) * 0.04;
+                targetEnergy = 0.38;          // always a visible wave at rest
             }
-            waveEnergy = Math.max(0.04, Math.min(1, waveEnergy));
+            waveEnergy += (targetEnergy - waveEnergy) * 0.04;
+            waveEnergy = Math.max(0.01, Math.min(1, waveEnergy));
 
-            wavePhase += isRecording ? 0.06 : isProcessingWave ? 0.045 : 0.018;
+            wavePhase += isRecording ? 0.052 : isProcessingWave ? 0.03 : 0.012;
 
-            const LAYERS = [
-                { amp: 0.80, freq: 1.0,  phShift: 0,    alpha: 0.95, width: 2.8 },
-                { amp: 0.55, freq: 1.7,  phShift: 1.1,  alpha: 0.55, width: 1.8 },
-                { amp: 0.38, freq: 2.6,  phShift: 2.4,  alpha: 0.30, width: 1.2 },
-                { amp: 0.22, freq: 3.8,  phShift: 0.7,  alpha: 0.18, width: 0.9 },
+            const N = 256;
+            const maxAmp = cy * 0.90 * waveEnergy;
+
+            // ── Build amplitude profile across the canvas ──
+            const ampArr = new Float32Array(N + 1);
+            for (let i = 0; i <= N; i++) {
+                const t = i / N;
+                // Soft edge envelope (slightly softer than sin so it tapers gently)
+                const env = Math.pow(Math.sin(t * Math.PI), 0.55);
+                ampArr[i] = (
+                    Math.sin(t * Math.PI * 2.15 + wavePhase)           * 0.40
+                  + Math.sin(t * Math.PI * 3.60 + wavePhase * 1.18 + 0.9) * 0.26
+                  + Math.sin(t * Math.PI * 5.40 + wavePhase * 0.73 + 1.8) * 0.16
+                  + Math.sin(t * Math.PI * 1.55 + wavePhase * 0.41 + 3.1) * 0.18
+                ) * maxAmp * env;
+            }
+
+            // Upper edge: cy + amp   Lower edge: cy - amp  (bilateral)
+            const upper = [];
+            const lower = [];
+            for (let i = 0; i <= N; i++) {
+                const x = (i / N) * waveW;
+                upper.push({ x, y: cy + ampArr[i] });
+                lower.push({ x, y: cy - ampArr[i] });
+            }
+
+            // ── Draw 3 layers: glow outer → mid → sharp inner ──
+            const layerDefs = [
+                { scale: 1.30, alpha: 0.13 },
+                { scale: 1.14, alpha: 0.28 },
+                { scale: 1.00, alpha: 0.92 },
             ];
 
-            const maxAmp = cy * 0.72 * waveEnergy;
+            layerDefs.forEach(({ scale, alpha }) => {
+                // Scale amplitude around cy for glow layers
+                const u = upper.map(p => ({ x: p.x, y: cy + (p.y - cy) * scale }));
+                const l = lower.map(p => ({ x: p.x, y: cy + (p.y - cy) * scale }));
 
-            LAYERS.forEach((layer, li) => {
-                const N = 300;
-                const pts = [];
-
-                for (let i = 0; i <= N; i++) {
-                    const t = i / N;
-                    const x = t * waveW;
-
-                    // Envelope: tapers to 0 at edges, peaks in centre
-                    const env = Math.sin(t * Math.PI);
-
-                    const y = cy
-                        + Math.sin(t * Math.PI * 2 * layer.freq + wavePhase + layer.phShift) * maxAmp * layer.amp * env
-                        + Math.sin(t * Math.PI * 4.3 * layer.freq + wavePhase * 0.7 + layer.phShift) * maxAmp * 0.18 * layer.amp * env
-                        + Math.sin(t * Math.PI * 7.1 * layer.freq + wavePhase * 1.3 + layer.phShift) * maxAmp * 0.09 * layer.amp * env;
-
-                    pts.push({ x, y, t });
-                }
-
-                // Draw glow fill beneath each wave
-                const fillGrad = waveCtx.createLinearGradient(0, 0, waveW, 0);
-                WAVE_COLORS.forEach(c => {
-                    fillGrad.addColorStop(c.pos, `rgba(${c.r},${c.g},${c.b},${layer.alpha * 0.12})`);
-                });
+                const grad = waveCtx.createLinearGradient(0, 0, waveW, 0);
+                grad.addColorStop(0,    `rgba(0,212,220,${alpha})`);
+                grad.addColorStop(0.25, `rgba(50,90,245,${alpha})`);
+                grad.addColorStop(0.55, `rgba(160,60,235,${alpha})`);
+                grad.addColorStop(0.80, `rgba(195,45,205,${alpha})`);
+                grad.addColorStop(1,    `rgba(232,48,128,${alpha})`);
 
                 waveCtx.beginPath();
-                waveCtx.moveTo(pts[0].x, pts[0].y);
-                for (let i = 1; i < pts.length - 1; i++) {
-                    const mx = (pts[i].x + pts[i + 1].x) / 2;
-                    const my = (pts[i].y + pts[i + 1].y) / 2;
-                    waveCtx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+
+                // Upper curve: left → right (smooth quadratic)
+                waveCtx.moveTo(u[0].x, u[0].y);
+                for (let i = 1; i < u.length - 1; i++) {
+                    const mx = (u[i].x + u[i + 1].x) / 2;
+                    const my = (u[i].y + u[i + 1].y) / 2;
+                    waveCtx.quadraticCurveTo(u[i].x, u[i].y, mx, my);
                 }
-                waveCtx.lineTo(pts[pts.length - 1].x, cy);
-                waveCtx.lineTo(pts[0].x, cy);
+                waveCtx.lineTo(u[u.length - 1].x, u[u.length - 1].y);
+
+                // Lower curve: right → left
+                for (let i = l.length - 1; i > 0; i--) {
+                    const mx = (l[i].x + l[i - 1].x) / 2;
+                    const my = (l[i].y + l[i - 1].y) / 2;
+                    waveCtx.quadraticCurveTo(l[i].x, l[i].y, mx, my);
+                }
+                waveCtx.lineTo(l[0].x, l[0].y);
+
                 waveCtx.closePath();
-                waveCtx.fillStyle = fillGrad;
+                waveCtx.fillStyle = grad;
+                waveCtx.globalAlpha = 1;
                 waveCtx.fill();
-
-                // Draw the wave line using per-segment colour
-                for (let i = 0; i < pts.length - 1; i++) {
-                    const t0 = pts[i].t, t1 = pts[i + 1].t;
-                    const c0 = interpolateColor(t0), c1 = interpolateColor(t1);
-                    const segGrad = waveCtx.createLinearGradient(pts[i].x, 0, pts[i + 1].x, 0);
-                    segGrad.addColorStop(0, `rgba(${c0.r},${c0.g},${c0.b},${layer.alpha})`);
-                    segGrad.addColorStop(1, `rgba(${c1.r},${c1.g},${c1.b},${layer.alpha})`);
-
-                    // Glow pass
-                    waveCtx.beginPath();
-                    waveCtx.moveTo(pts[i].x, pts[i].y);
-                    waveCtx.lineTo(pts[i + 1].x, pts[i + 1].y);
-                    waveCtx.strokeStyle = segGrad;
-                    waveCtx.lineWidth   = layer.width + 3;
-                    waveCtx.globalAlpha = layer.alpha * 0.18;
-                    waveCtx.stroke();
-
-                    // Sharp line
-                    waveCtx.lineWidth   = layer.width;
-                    waveCtx.globalAlpha = 1;
-                    waveCtx.stroke();
-                }
             });
 
             waveCtx.globalAlpha = 1;
         }
-
         function startWaveformAnimation() {
             function loop() {
                 drawWave();
