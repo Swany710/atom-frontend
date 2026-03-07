@@ -956,6 +956,9 @@
                     <div class="voice-button" id="voiceButton" onclick="toggleRecording()" title="Toggle recording">
                         🎤
                     </div>
+                    <div class="voice-button" id="muteBtn" onclick="toggleVoiceResponse()" title="Mute Atom voice" style="font-size:1.3rem;">
+                        🔊
+                    </div>
                 </div>
 
                 <!-- Status Text -->
@@ -1460,6 +1463,8 @@
                 addMessageToConversation('assistant', result.message);
                 updateStatus('Response generated successfully!', 'success');
                 pinResponseArea();
+                // Speak the response
+                playResponseAudio(result.message);
             } catch (error) {
                 console.error('Error processing text:', error);
                 updateStatus('Error: ' + error.message, 'error');
@@ -1557,6 +1562,9 @@
         async function startRecording() {
             try {
                 console.log('🎤 Starting recording...');
+
+                // Stop any TTS playback before recording
+                stopAudioPlayback();
                 
                 // Reset any previous state
                 if (isRecording) {
@@ -1677,6 +1685,8 @@
                 isProcessingWave = false;
                 updateStatus('Voice command processed successfully!', 'success');
                 pinResponseArea();
+                // Play Atom's voice response
+                playResponseAudio(result.message);
             } catch (error) {
                 console.error('Error processing voice:', error);
                 updateStatus('Voice processing failed: ' + error.message, 'error');
@@ -1918,6 +1928,9 @@
         let wavePhase = 0;
         let waveEnergy = 0; // 0–1 smoothed energy level
         let isProcessingWave = false;
+        let isSpeakingWave  = false;   // Atom is speaking back
+        let currentAudio    = null;    // HTMLAudioElement for TTS playback
+        let voiceResponseOn = true;    // user mute toggle
 
         // Palette from the reference image: cyan → blue → purple → pink
         const WAVE_COLORS = [
@@ -1987,6 +2000,86 @@
             return (sum / audioDataArray.length) / 255;
         }
 
+        // ── TTS playback ─────────────────────────────────────────────────────────
+        async function playResponseAudio(text) {
+            if (!voiceResponseOn || !text?.trim()) return;
+
+            // Stop any current playback
+            stopAudioPlayback();
+
+            try {
+                const resp = await fetch(`${apiBaseUrl}/ai/speak`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ text })
+                });
+                if (!resp.ok) { console.warn('TTS failed:', resp.status); return; }
+
+                const blob = await resp.blob();
+                const url  = URL.createObjectURL(blob);
+                currentAudio = new Audio(url);
+
+                // Connect playback to the same analyser so wave reacts
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (!analyser) {
+                    analyser = audioCtx.createAnalyser();
+                    analyser.fftSize = 256;
+                    analyser.smoothingTimeConstant = 0.8;
+                    audioDataArray = new Uint8Array(analyser.frequencyBinCount);
+                }
+                if (audioSource) { try { audioSource.disconnect(); } catch(e){} audioSource = null; }
+                audioSource = audioCtx.createMediaElementSource(currentAudio);
+                audioSource.connect(analyser);
+                analyser.connect(audioCtx.destination); // route audio to speakers
+
+                isSpeakingWave = true;
+                updateStatus('🔊 Speaking...', 'processing');
+
+                currentAudio.onended = () => {
+                    isSpeakingWave = false;
+                    stopAudioPlayback(false); // don't pause, already ended
+                    updateStatus('Ready for voice or text commands...', '');
+                    URL.revokeObjectURL(url);
+                };
+                currentAudio.onerror = () => {
+                    isSpeakingWave = false;
+                    URL.revokeObjectURL(url);
+                };
+
+                await currentAudio.play();
+            } catch (err) {
+                console.warn('TTS playback error:', err);
+                isSpeakingWave = false;
+            }
+        }
+
+        function stopAudioPlayback(pause = true) {
+            isSpeakingWave = false;
+            if (currentAudio) {
+                if (pause) { try { currentAudio.pause(); } catch(e){} }
+                currentAudio = null;
+            }
+            if (audioSource) {
+                try { audioSource.disconnect(); } catch(e){}
+                audioSource = null;
+            }
+            if (analyser && audioCtx) {
+                try { analyser.disconnect(audioCtx.destination); } catch(e){}
+            }
+        }
+
+        function toggleVoiceResponse() {
+            voiceResponseOn = !voiceResponseOn;
+            const btn = document.getElementById('muteBtn');
+            if (btn) {
+                btn.textContent  = voiceResponseOn ? '🔊' : '🔇';
+                btn.title        = voiceResponseOn ? 'Mute Atom voice' : 'Unmute Atom voice';
+                btn.style.color  = voiceResponseOn ? '#00d4dc' : '#666';
+                btn.style.borderColor = voiceResponseOn ? 'rgba(0,212,220,0.35)' : 'rgba(255,255,255,0.15)';
+            }
+            if (!voiceResponseOn) stopAudioPlayback();
+        }
+
         function drawWave() {
             if (!waveCtx || !waveW || !waveH) return;
 
@@ -1998,6 +2091,9 @@
             if (isRecording) {
                 const raw = getAudioEnergy();
                 targetEnergy = 0.38 + raw * 0.62;
+            } else if (isSpeakingWave) {
+                const raw = getAudioEnergy();           // reads TTS playback energy
+                targetEnergy = 0.45 + raw * 0.50;
             } else if (isProcessingWave) {
                 targetEnergy = 0.54;
             } else {
@@ -2006,7 +2102,7 @@
             waveEnergy += (targetEnergy - waveEnergy) * 0.04;
             waveEnergy = Math.max(0.01, Math.min(1, waveEnergy));
 
-            wavePhase += isRecording ? 0.052 : isProcessingWave ? 0.03 : 0.012;
+            wavePhase += isRecording ? 0.052 : isSpeakingWave ? 0.042 : isProcessingWave ? 0.03 : 0.012;
 
             const N = 256;
             const maxAmp = cy * 0.90 * waveEnergy;
