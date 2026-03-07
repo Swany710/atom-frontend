@@ -2551,7 +2551,13 @@
                 const d = await r.json();
                 const badge = d.connected ? 'ok' : d.setupRequired ? 'err' : 'warn';
                 const label = d.connected ? `Connected (${d.emailAddress || ''})` : d.setupRequired ? 'Setup required' : 'Not connected';
-                cards.push(connCard('📧', 'Gmail', 'Email & Calendar', badge, label, `<button class="panel-action-btn" style="font-size:0.75rem;padding:0.25rem 0.6rem;" onclick="openSettings()">Configure</button>`));
+                const gmailExtra = d.connected
+                    ? `<div style="display:flex;gap:0.3rem;">
+                         <button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="openSettings()">⚙ Settings</button>
+                         <button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;color:#ef4444;" onclick="disconnectGmail()">Disconnect</button>
+                       </div>`
+                    : `<button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="openSettings()">Connect</button>`;
+                cards.push(connCard('📧', 'Gmail', 'Email & Calendar', badge, label, gmailExtra));
             } catch { cards.push(connCard('📧', 'Gmail', 'Email & Calendar', 'warn', 'Status unavailable')); }
 
             // 3. Claude / AI
@@ -2683,10 +2689,12 @@
         }
 
         async function refreshSettingsStatus() {
-            const statusEl  = document.getElementById('gmailStatusBadge');
-            const emailEl   = document.getElementById('gmailEmailDisplay');
-            const connectBtn = document.getElementById('gmailConnectBtn');
-            const setupNote  = document.getElementById('gmailSetupNote');
+            const statusEl      = document.getElementById('gmailStatusBadge');
+            const emailEl       = document.getElementById('gmailEmailDisplay');
+            const connectBtn    = document.getElementById('gmailConnectBtn');
+            const disconnectBtn = document.getElementById('gmailDisconnectBtn');
+            const setupNote     = document.getElementById('gmailSetupNote');
+            const calStatusEl   = document.getElementById('calendarStatusBadge');
 
             statusEl.textContent = '⏳ Checking…';
             try {
@@ -2694,16 +2702,26 @@
                 const data = await res.json();
 
                 if (data.connected) {
-                    statusEl.textContent  = '✅ Connected';
-                    statusEl.style.color  = '#22c55e';
-                    emailEl.textContent   = data.emailAddress ?? '';
-                    connectBtn.textContent = '🔄 Reconnect Gmail';
+                    statusEl.textContent    = '✅ Connected';
+                    statusEl.style.color    = '#22c55e';
+                    emailEl.textContent     = data.emailAddress ?? '';
+                    connectBtn.textContent  = '🔄 Reconnect (switch account)';
+                    disconnectBtn.style.display = 'block';
                     setupNote.style.display = 'none';
+                    if (calStatusEl) {
+                        calStatusEl.textContent = '✅ Active (via Gmail OAuth)';
+                        calStatusEl.style.color = '#22c55e';
+                    }
                 } else {
-                    statusEl.textContent  = '❌ Not connected';
-                    statusEl.style.color  = '#ef4444';
-                    emailEl.textContent   = '';
-                    connectBtn.textContent = '🔗 Connect Gmail';
+                    statusEl.textContent    = '❌ Not connected';
+                    statusEl.style.color    = '#ef4444';
+                    emailEl.textContent     = '';
+                    connectBtn.textContent  = '🔗 Connect Gmail';
+                    disconnectBtn.style.display = 'none';
+                    if (calStatusEl) {
+                        calStatusEl.textContent = '⚠️ Connect Gmail first';
+                        calStatusEl.style.color = '#f59e0b';
+                    }
                     if (data.setupRequired) {
                         setupNote.style.display = 'block';
                     }
@@ -2763,6 +2781,30 @@
             } catch (e) {
                 alert('Could not start Gmail connection: ' + e.message +
                       '\n\nMake sure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set in your Railway environment variables.');
+            }
+        }
+
+        async function disconnectGmail() {
+            if (!confirm('Disconnect Gmail? You can reconnect at any time.')) return;
+            const disconnectBtn = document.getElementById('gmailDisconnectBtn');
+            disconnectBtn.textContent = 'Disconnecting…';
+            disconnectBtn.disabled = true;
+            try {
+                const res = await fetch(
+                    `${apiBaseUrl}/email/oauth/disconnect?provider=gmail&userId=default-user`.replace('/api/v1', ''),
+                    { method: 'DELETE' }
+                );
+                const data = await res.json();
+                if (data.success) {
+                    await refreshSettingsStatus();
+                } else {
+                    alert('Disconnect failed: ' + (data.error ?? 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Could not disconnect: ' + e.message);
+            } finally {
+                disconnectBtn.textContent = '🔌 Disconnect Gmail';
+                disconnectBtn.disabled = false;
             }
         }
 
@@ -2883,9 +2925,15 @@
                     <span class="settings-value" id="gmailEmailDisplay" style="color:#22c55e;">—</span>
                 </div>
 
-                <button class="settings-btn" id="gmailConnectBtn" onclick="connectGmail()">
-                    🔗 Connect Gmail
-                </button>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                    <button class="settings-btn" id="gmailConnectBtn" onclick="connectGmail()" style="flex:1;min-width:160px;">
+                        🔗 Connect Gmail
+                    </button>
+                    <button class="settings-btn" id="gmailDisconnectBtn" onclick="disconnectGmail()"
+                            style="flex:1;min-width:160px;background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3);display:none;">
+                        🔌 Disconnect Gmail
+                    </button>
+                </div>
 
                 <div class="settings-note" id="gmailSetupNote" style="display:none;">
                     <strong>One-time setup required:</strong><br>
@@ -2907,12 +2955,12 @@
                 </div>
                 <div class="settings-row">
                     <span class="settings-label">Status</span>
-                    <span class="settings-value" style="color:#f59e0b;">Coming soon</span>
+                    <span class="settings-value" id="calendarStatusBadge" style="color:#f59e0b;">⏳ Loading…</span>
                 </div>
                 <div class="settings-note">
-                    Calendar will use the same Google account you connect for Gmail.
-                    Once Gmail is connected, calendar access is enabled automatically
-                    (requires <code>calendar.readonly</code> scope — you can re-connect Gmail to add it).
+                    Calendar uses the same Google account as Gmail — no separate login needed.
+                    If you just connected Gmail for the first time, click <strong>Reconnect</strong>
+                    above once to grant calendar access with the updated scopes.
                 </div>
             </div>
 
