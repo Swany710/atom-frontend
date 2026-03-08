@@ -2812,13 +2812,29 @@
         async function connectGmail() {
             try {
                 // Fetch the Google OAuth URL from the backend
-                const urlRes = await fetch(
-                    `${apiBaseUrl}/email/oauth/url?provider=gmail`.replace('/api/v1', '')
-                );
+                const oauthEndpoint = `${apiBaseUrl}/email/oauth/url?provider=gmail`.replace('/api/v1', '');
+                const urlRes = await fetch(oauthEndpoint);
 
-                // The backend returns a plain string (the OAuth URL)
+                // Surface backend errors before trying to use the response as a URL
+                if (!urlRes.ok) {
+                    const errText = await urlRes.text();
+                    let parsed;
+                    try { parsed = JSON.parse(errText); } catch { parsed = null; }
+                    const msg = parsed?.message ?? errText ?? `HTTP ${urlRes.status}`;
+                    throw new Error(`Backend returned ${urlRes.status}: ${msg}`);
+                }
+
+                // The backend returns the OAuth URL as a JSON-quoted string
                 const text = await urlRes.text();
-                const oauthUrl = text.replace(/^"|"$/g, ''); // strip JSON quotes if any
+                const oauthUrl = text.replace(/^"|"$/g, '').trim();
+
+                // Validate it actually looks like a Google auth URL before opening
+                if (!oauthUrl.startsWith('https://accounts.google.com') &&
+                    !oauthUrl.startsWith('https://login.microsoftonline.com')) {
+                    throw new Error(
+                        `Unexpected OAuth URL from backend (first 120 chars): ${oauthUrl.slice(0, 120)}`
+                    );
+                }
 
                 // Open OAuth in a popup
                 const popup = window.open(
@@ -2859,8 +2875,14 @@
                 }, 1000);
 
             } catch (e) {
-                alert('Could not start Gmail connection: ' + e.message +
-                      '\n\nMake sure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set in your Railway environment variables.');
+                alert(
+                    'Could not start Gmail connection:\n' + e.message +
+                    '\n\n─── Check your Railway backend env vars ───\n' +
+                    '• GOOGLE_CLIENT_ID\n' +
+                    '• GOOGLE_CLIENT_SECRET\n' +
+                    '• GOOGLE_REDIRECT_URI  (must be your BACKEND URL + /email/oauth/callback)\n' +
+                    '• OAUTH_STATE_SECRET   (any random 32+ char string)'
+                );
             }
         }
 
