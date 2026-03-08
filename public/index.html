@@ -1329,7 +1329,6 @@
 
                 const payload = {
                     message: text,
-                    userId: 'default-user',
                     // only include if not null (first call will be null, backend will assign)
                     ...(conversationId && { conversationId })
                 };
@@ -1548,12 +1547,11 @@
 
                 const formData = new FormData();
                 formData.append('audio', audioBlob, 'audio.mp3');
-                formData.append('userId', 'default-user');
                 if (conversationId) {
                     formData.append('conversationId', conversationId);
                 }
 
-                // /ai/voice-command reads userId + conversationId from form body
+                // /ai/voice-command resolves userId server-side; sends conversationId if known
                 // and always returns JSON — use this instead of /ai/voice
                 const response = await fetch(`${apiBaseUrl}/ai/voice-command`, {
                     method: 'POST',
@@ -2195,7 +2193,7 @@
                 const res = await fetch(`${apiBaseUrl}/integrations/email/send`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ to, subject, body, userId: 'default-user' })
+                    body: JSON.stringify({ to, subject, body })
                 });
                 const data = await res.json();
                 if (res.ok) {
@@ -2582,7 +2580,10 @@
             const body = document.getElementById('conversationsBody');
             body.innerHTML = '<p class="panel-msg">Loading conversations…</p>';
             try {
-                const res  = await fetch(`${apiBaseUrl}/ai/conversations/default-user`);
+                // Use the active conversationId if set, otherwise fall back to 'main'
+                // (the backend stores messages under the session ID used at conversation time)
+                const convoFetchId = conversationId || 'main';
+                const res  = await fetch(`${apiBaseUrl}/ai/conversations/${encodeURIComponent(convoFetchId)}`);
                 const data = await res.json();
                 const convos = data.conversations || data || [];
                 if (!Array.isArray(convos) || convos.length === 0) {
@@ -2623,7 +2624,7 @@
 
             // 2. Gmail
             try {
-                const r = await fetch(`${apiBaseUrl}/email/oauth/gmail-status?userId=default-user`.replace('/api/v1',''));
+                const r = await fetch(`${apiBaseUrl}/email/oauth/gmail-status`.replace('/api/v1',''));
                 const d = await r.json();
                 const badge = d.connected ? 'ok' : d.setupRequired ? 'err' : 'warn';
                 const label = d.connected ? `Connected (${d.emailAddress || ''})` : d.setupRequired ? 'Setup required' : 'Not connected';
@@ -2644,7 +2645,7 @@
 
             // 5. Google Calendar (via Gmail OAuth)
             try {
-                const r = await fetch(`${apiBaseUrl}/integrations/calendar/status?userId=default-user`);
+                const r = await fetch(`${apiBaseUrl}/integrations/calendar/status`);
                 const d = await r.json();
                 const badge = d.connected ? 'ok' : 'warn';
                 const label = d.connected ? `Connected (${d.emailAddress || ''})` : d.note || 'Not connected';
@@ -2774,7 +2775,7 @@
 
             statusEl.textContent = '⏳ Checking…';
             try {
-                const res  = await fetch(`${apiBaseUrl}/email/oauth/gmail-status?userId=default-user`.replace('/api/v1', ''));
+                const res  = await fetch(`${apiBaseUrl}/email/oauth/gmail-status`.replace('/api/v1', ''));
                 const data = await res.json();
 
                 if (data.connected) {
@@ -2812,7 +2813,7 @@
             try {
                 // Fetch the Google OAuth URL from the backend
                 const urlRes = await fetch(
-                    `${apiBaseUrl}/email/oauth/url?provider=gmail&userId=default-user`.replace('/api/v1', '')
+                    `${apiBaseUrl}/email/oauth/url?provider=gmail`.replace('/api/v1', '')
                 );
 
                 // The backend returns a plain string (the OAuth URL)
@@ -2831,8 +2832,11 @@
                     return;
                 }
 
-                // Listen for the callback message from the popup
+                // Listen for the callback message from the popup.
+                // Validate event.origin so only messages from our own origin are trusted.
+                const expectedOrigin = window.location.origin;
                 const handler = async (event) => {
+                    if (event.origin !== expectedOrigin) return; // ignore cross-origin messages
                     if (event.data?.type === 'ATOM_GMAIL_CONNECTED') {
                         window.removeEventListener('message', handler);
                         popup.close();
@@ -2867,7 +2871,7 @@
             disconnectBtn.disabled = true;
             try {
                 const res = await fetch(
-                    `${apiBaseUrl}/email/oauth/disconnect?provider=gmail&userId=default-user`.replace('/api/v1', ''),
+                    `${apiBaseUrl}/email/oauth/disconnect?provider=gmail`.replace('/api/v1', ''),
                     { method: 'DELETE' }
                 );
                 const data = await res.json();
@@ -2884,8 +2888,10 @@
             }
         }
 
-        // Listen for OAuth popup messages globally
+        // Listen for OAuth popup messages globally.
+        // Validate event.origin so only messages from our own origin are trusted.
         window.addEventListener('message', (event) => {
+            if (event.origin !== window.location.origin) return; // ignore cross-origin messages
             if (event.data?.type === 'ATOM_GMAIL_CONNECTED') {
                 refreshSettingsStatus();
             }
@@ -3045,7 +3051,7 @@
                 <div class="settings-section-title">👤 Account</div>
                 <div class="settings-row">
                     <span class="settings-label">User ID</span>
-                    <span class="settings-value" style="color:#888;">default-user</span>
+                    <span class="settings-value" style="color:#888;">managed by server</span>
                 </div>
                 <div class="settings-row">
                     <span class="settings-label">AI Model</span>
