@@ -2637,7 +2637,22 @@
                 cards.push(connCard('📧', 'Gmail', 'Email & Calendar', badge, label, gmailExtra));
             } catch { cards.push(connCard('📧', 'Gmail', 'Email & Calendar', 'warn', 'Status unavailable')); }
 
-            // 3. Claude / AI
+            // 3. Outlook
+            try {
+                const r = await fetch(`${apiBaseUrl}/email/oauth/outlook-status`.replace('/api/v1',''));
+                const d = await r.json();
+                const badge = d.connected ? 'ok' : d.setupRequired ? 'err' : 'warn';
+                const label = d.connected ? `Connected (${d.emailAddress || ''})` : d.setupRequired ? 'Setup required' : 'Not connected';
+                const outlookExtra = d.connected
+                    ? `<div style="display:flex;gap:0.3rem;">
+                         <button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="openSettings()">⚙ Settings</button>
+                         <button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;color:#ef4444;" onclick="disconnectOutlook()">Disconnect</button>
+                       </div>`
+                    : `<button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="openSettings()">Connect</button>`;
+                cards.push(connCard('📨', 'Outlook', 'Microsoft email', badge, label, outlookExtra));
+            } catch { cards.push(connCard('📨', 'Outlook', 'Microsoft email', 'warn', 'Status unavailable')); }
+
+            // 4. Claude / AI
             cards.push(connCard('🧠', 'Claude (Anthropic)', 'AI model', 'ok', 'Active'));
 
             // 4. Whisper / Voice
@@ -2766,6 +2781,11 @@
         }
 
         async function refreshSettingsStatus() {
+            // Refresh Gmail and Outlook status in parallel
+            await Promise.all([refreshGmailStatus(), refreshOutlookStatus()]);
+        }
+
+        async function refreshGmailStatus() {
             const statusEl      = document.getElementById('gmailStatusBadge');
             const emailEl       = document.getElementById('gmailEmailDisplay');
             const connectBtn    = document.getElementById('gmailConnectBtn');
@@ -2800,6 +2820,42 @@
                         calStatusEl.style.color = '#f59e0b';
                     }
                     if (data.setupRequired) {
+                        setupNote.style.display = 'block';
+                    }
+                }
+            } catch (e) {
+                statusEl.textContent = '⚠️ Status unavailable';
+                statusEl.style.color = '#f59e0b';
+            }
+        }
+
+        async function refreshOutlookStatus() {
+            const statusEl      = document.getElementById('outlookStatusBadge');
+            const emailEl       = document.getElementById('outlookEmailDisplay');
+            const connectBtn    = document.getElementById('outlookConnectBtn');
+            const disconnectBtn = document.getElementById('outlookDisconnectBtn');
+            const setupNote     = document.getElementById('outlookSetupNote');
+            if (!statusEl) return; // modal not yet rendered
+
+            statusEl.textContent = '⏳ Checking…';
+            try {
+                const res  = await fetch(`${apiBaseUrl}/email/oauth/outlook-status`.replace('/api/v1', ''));
+                const data = await res.json();
+
+                if (data.connected) {
+                    statusEl.textContent    = '✅ Connected';
+                    statusEl.style.color    = '#00d4dc';
+                    emailEl.textContent     = data.emailAddress ?? '';
+                    connectBtn.textContent  = '🔄 Reconnect (switch account)';
+                    disconnectBtn.style.display = 'block';
+                    if (setupNote) setupNote.style.display = 'none';
+                } else {
+                    statusEl.textContent    = '❌ Not connected';
+                    statusEl.style.color    = '#ef4444';
+                    emailEl.textContent     = '';
+                    connectBtn.textContent  = '🔗 Connect Outlook';
+                    disconnectBtn.style.display = 'none';
+                    if (setupNote && data.setupRequired) {
                         setupNote.style.display = 'block';
                     }
                 }
@@ -2910,12 +2966,108 @@
             }
         }
 
+        async function connectOutlook() {
+            try {
+                const oauthEndpoint = `${apiBaseUrl}/email/oauth/url?provider=outlook`.replace('/api/v1', '');
+                const urlRes = await fetch(oauthEndpoint);
+
+                if (!urlRes.ok) {
+                    const errText = await urlRes.text();
+                    let parsed;
+                    try { parsed = JSON.parse(errText); } catch { parsed = null; }
+                    const msg = parsed?.message ?? errText ?? `HTTP ${urlRes.status}`;
+                    throw new Error(`Backend returned ${urlRes.status}: ${msg}`);
+                }
+
+                const text = await urlRes.text();
+                const oauthUrl = text.replace(/^"|"$/g, '').trim();
+
+                if (!oauthUrl.startsWith('https://login.microsoftonline.com')) {
+                    throw new Error(
+                        `Unexpected OAuth URL from backend (first 120 chars): ${oauthUrl.slice(0, 120)}`
+                    );
+                }
+
+                const popup = window.open(
+                    oauthUrl,
+                    'outlook-oauth',
+                    'width=500,height=650,left=200,top=100,resizable=yes,scrollbars=yes'
+                );
+
+                if (!popup) {
+                    alert('Popup was blocked. Please allow popups for this page and try again.');
+                    return;
+                }
+
+                const expectedOrigin = window.location.origin;
+                const handler = async (event) => {
+                    if (event.origin !== expectedOrigin) return;
+                    if (event.data?.type === 'ATOM_OUTLOOK_CONNECTED') {
+                        window.removeEventListener('message', handler);
+                        popup.close();
+                        if (event.data.success) {
+                            await refreshOutlookStatus();
+                        } else {
+                            alert('Outlook connection failed: ' + (event.data.error ?? 'Unknown error'));
+                        }
+                    }
+                };
+                window.addEventListener('message', handler);
+
+                const pollClose = setInterval(async () => {
+                    if (popup.closed) {
+                        clearInterval(pollClose);
+                        window.removeEventListener('message', handler);
+                        await refreshOutlookStatus();
+                    }
+                }, 1000);
+
+            } catch (e) {
+                alert(
+                    'Could not start Outlook connection:\n' + e.message +
+                    '\n\n─── Check your Railway backend env vars ───\n' +
+                    '• MICROSOFT_CLIENT_ID\n' +
+                    '• MICROSOFT_CLIENT_SECRET\n' +
+                    '• MICROSOFT_REDIRECT_URI  (must be your BACKEND URL + /email/oauth/callback)\n' +
+                    '• MICROSOFT_TENANT_ID     (use "common" for personal + work accounts)\n' +
+                    '• OAUTH_STATE_SECRET      (any random 32+ char string)'
+                );
+            }
+        }
+
+        async function disconnectOutlook() {
+            if (!confirm('Disconnect Outlook? You can reconnect at any time.')) return;
+            const disconnectBtn = document.getElementById('outlookDisconnectBtn');
+            disconnectBtn.textContent = 'Disconnecting…';
+            disconnectBtn.disabled = true;
+            try {
+                const res = await fetch(
+                    `${apiBaseUrl}/email/oauth/disconnect?provider=outlook`.replace('/api/v1', ''),
+                    { method: 'DELETE' }
+                );
+                const data = await res.json();
+                if (data.success) {
+                    await refreshOutlookStatus();
+                } else {
+                    alert('Disconnect failed: ' + (data.error ?? 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Could not disconnect: ' + e.message);
+            } finally {
+                disconnectBtn.textContent = '🔌 Disconnect Outlook';
+                disconnectBtn.disabled = false;
+            }
+        }
+
         // Listen for OAuth popup messages globally.
         // Validate event.origin so only messages from our own origin are trusted.
         window.addEventListener('message', (event) => {
             if (event.origin !== window.location.origin) return; // ignore cross-origin messages
             if (event.data?.type === 'ATOM_GMAIL_CONNECTED') {
-                refreshSettingsStatus();
+                refreshGmailStatus();
+            }
+            if (event.data?.type === 'ATOM_OUTLOOK_CONNECTED') {
+                refreshOutlookStatus();
             }
         });
 
@@ -3047,6 +3199,40 @@
                     <code>GOOGLE_REDIRECT_URI</code> = <code>https://atom-backend-production-8a1e.up.railway.app/email/oauth/callback</code><br>
                     <code>EMAIL_PROVIDER_NAME</code> = <code>gmail</code><br><br>
                     Once set, come back here and click Connect Gmail.
+                </div>
+            </div>
+
+            <!-- Outlook Section -->
+            <div class="settings-section">
+                <div class="settings-section-title">📨 Outlook / Microsoft 365</div>
+
+                <div class="settings-row">
+                    <span class="settings-label">Status</span>
+                    <span class="settings-value" id="outlookStatusBadge">⏳ Loading…</span>
+                </div>
+                <div class="settings-row">
+                    <span class="settings-label">Account</span>
+                    <span class="settings-value" id="outlookEmailDisplay" style="color:#00d4dc;">—</span>
+                </div>
+
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                    <button class="settings-btn" id="outlookConnectBtn" onclick="connectOutlook()" style="flex:1;min-width:160px;">
+                        🔗 Connect Outlook
+                    </button>
+                    <button class="settings-btn" id="outlookDisconnectBtn" onclick="disconnectOutlook()"
+                            style="flex:1;min-width:160px;background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3);display:none;">
+                        🔌 Disconnect Outlook
+                    </button>
+                </div>
+
+                <div class="settings-note" id="outlookSetupNote" style="display:none;">
+                    <strong>One-time setup required:</strong><br>
+                    Before connecting, add these to your Railway Backend service's environment variables:<br>
+                    <code>MICROSOFT_CLIENT_ID</code> — from <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps" target="_blank">Azure App Registrations</a><br>
+                    <code>MICROSOFT_CLIENT_SECRET</code> — same place (Certificates &amp; Secrets)<br>
+                    <code>MICROSOFT_REDIRECT_URI</code> = <code>https://atom-backend-production-8a1e.up.railway.app/email/oauth/callback</code><br>
+                    <code>MICROSOFT_TENANT_ID</code> = <code>common</code> (personal + work accounts)<br><br>
+                    Once set, come back here and click Connect Outlook.
                 </div>
             </div>
 
