@@ -274,7 +274,7 @@ async function processAudioRecording() {
         formData.append('audio', audioBlob, 'audio.mp3');
         if (window.conversationId) formData.append('conversationId', window.conversationId);
 
-        const result = await AtomAPI.postForm('/ai/voice-command', formData, { timeoutMs: 60_000 });
+        const result = await AtomAPI.postForm('/ai/voice', formData, { timeoutMs: 60_000 });
 
         if (result.conversationId) window.conversationId = result.conversationId;
         addMessageToConversation('user', `"${result.transcription}"`);
