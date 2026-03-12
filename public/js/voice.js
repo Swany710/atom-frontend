@@ -7,6 +7,7 @@
 let isRecording  = false;
 let mediaRecorder = null;
 let audioChunks   = [];
+let recordedMimeType = 'audio/webm'; // actual format chosen by MediaRecorder
 
 // ── Waveform / audio analysis ─────────────────────────────────────────────
 let waveCanvas, waveCtx, waveW, waveH;
@@ -232,10 +233,11 @@ async function startRecording() {
         });
 
         audioChunks = [];
-        let mimeType = 'audio/mp3';
-        if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'audio/webm';
+        let mimeType = 'audio/webm';  // Chrome doesn't support audio/mp3 in MediaRecorder
+        if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'audio/mp4';
         if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'audio/wav';
         if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = '';
+        recordedMimeType = mimeType || 'audio/webm'; // persist for processAudioRecording
 
         const options  = mimeType ? { mimeType } : {};
         mediaRecorder  = new MediaRecorder(stream, options);
@@ -263,7 +265,7 @@ async function startRecording() {
 async function processAudioRecording() {
     try {
         if (audioChunks.length === 0) throw new Error('No audio data recorded');
-        const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
+        const audioBlob = new Blob(audioChunks, { type: recordedMimeType });
         if (audioBlob.size < 1000) throw new Error('Speak at least 1 second');
 
         disconnectAudioAnalyser();
@@ -271,7 +273,11 @@ async function processAudioRecording() {
         updateStatus('Transcribing and processing...', 'processing');
 
         const formData = new FormData();
-        formData.append('audio', audioBlob, 'audio.mp3');
+        const ext = recordedMimeType.includes('webm') ? '.webm'
+                  : recordedMimeType.includes('mp4')  ? '.mp4'
+                  : recordedMimeType.includes('wav')  ? '.wav'
+                  : '.webm';
+        formData.append('audio', audioBlob, 'audio' + ext);
         if (window.conversationId) formData.append('conversationId', window.conversationId);
 
         const result = await AtomAPI.postForm('/ai/voice', formData, { timeoutMs: 60_000 });
