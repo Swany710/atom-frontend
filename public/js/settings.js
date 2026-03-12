@@ -40,7 +40,8 @@ async function refreshGmailStatus() {
     statusEl.textContent = '⏳ Checking…';
 
     try {
-        const data = await AtomAPI.get(OAUTH_BASE + '/gmail-status');
+        const r    = await fetch(OAUTH_BASE + '/gmail-status');
+        const data = await r.json();
 
         if (data.connected) {
             statusEl.textContent        = '✅ Connected';
@@ -84,7 +85,8 @@ async function refreshOutlookStatus() {
     statusEl.textContent = '⏳ Checking…';
 
     try {
-        const data = await AtomAPI.get(OAUTH_BASE + '/outlook-status');
+        const r    = await fetch(OAUTH_BASE + '/outlook-status');
+        const data = await r.json();
 
         if (data.connected) {
             statusEl.textContent        = '✅ Connected';
@@ -113,7 +115,7 @@ async function refreshOutlookStatus() {
 
 async function connectGmail() {
     try {
-        const resp = await AtomAPI.getRaw(OAUTH_BASE + '/url?provider=gmail');
+        const resp = await fetch(OAUTH_BASE + '/url?provider=gmail');
 
         if (!resp.ok) {
             const errText = await resp.text();
@@ -185,9 +187,7 @@ async function disconnectGmail() {
     const restore = disconnectBtn ? AtomAPI.withButton(disconnectBtn, 'Disconnecting…') : () => {};
 
     try {
-        const resp = await AtomAPI.getRaw(OAUTH_BASE + '/disconnect?provider=gmail', {
-            method: 'DELETE',
-        });
+        const resp = await fetch(OAUTH_BASE + '/disconnect?provider=gmail', { method: 'DELETE' });
         const data = await resp.json();
         if (data.success) {
             await refreshSettingsStatus();
@@ -206,7 +206,7 @@ async function disconnectGmail() {
 
 async function connectOutlook() {
     try {
-        const resp = await AtomAPI.getRaw(OAUTH_BASE + '/url?provider=outlook');
+        const resp = await fetch(OAUTH_BASE + '/url?provider=outlook');
 
         if (!resp.ok) {
             const errText = await resp.text();
@@ -278,9 +278,7 @@ async function disconnectOutlook() {
     const restore = disconnectBtn ? AtomAPI.withButton(disconnectBtn, 'Disconnecting…') : () => {};
 
     try {
-        const resp = await AtomAPI.getRaw(OAUTH_BASE + '/disconnect?provider=outlook', {
-            method: 'DELETE',
-        });
+        const resp = await fetch(OAUTH_BASE + '/disconnect?provider=outlook', { method: 'DELETE' });
         const data = await resp.json();
         if (data.success) {
             await refreshOutlookStatus();
