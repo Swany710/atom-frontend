@@ -192,6 +192,8 @@ let playbackStarted    = false;
 
 function scheduleAudioChunk(float32) {
     const ctx = getAudioCtx();
+    // Mute mic-to-VAD path while Atom is speaking to prevent echo
+    if (window._micGain) window._micGain.gain.value = 0;
     if (!playbackStarted || playbackScheduled < ctx.currentTime) {
         playbackScheduled = ctx.currentTime + 0.05; // 50ms initial buffer
         playbackStarted   = true;
@@ -287,9 +289,10 @@ function handleRealtimeEvent(evt) {
 
         // User speech detected — interrupt any current playback
         case 'input_audio_buffer.speech_started':
+            // Restore mic gain — user is speaking (we muted it during playback)
+            if (window._micGain) window._micGain.gain.value = 1;
             if (isSpeakingWave) {
                 stopAllPlayback();
-                // Tell OpenAI to cancel its current response
                 if (realtimeWs?.readyState === WebSocket.OPEN) {
                     realtimeWs.send(JSON.stringify({ type: 'response.cancel' }));
                 }
@@ -324,19 +327,21 @@ function handleRealtimeEvent(evt) {
             responseBuffer += evt.delta || '';
             break;
 
-        // Response complete — persist the full transcript
-        case 'response.audio_transcript.done':
-        case 'response.done': {
-            const transcript = (evt.response?.output?.[0]?.content?.[0]?.transcript)
-                ?? responseBuffer;
+        // response.audio_transcript.done fires once with the full clean transcript
+        case 'response.audio_transcript.done': {
+            const transcript = evt.transcript ?? responseBuffer;
             if (transcript?.trim()) {
                 addMessageToConversation('assistant', transcript.trim());
                 pinResponseArea();
-                // Save to backend conversation memory via text endpoint (keeps history in sync)
-                syncTranscriptToBackend(transcript.trim());
             }
-            responseBuffer   = '';
+            responseBuffer = '';
+            break;
+        }
+
+        // response.done = full turn finished — reset state, no UI message (already shown above)
+        case 'response.done': {
             isProcessingWave = false;
+            isSpeakingWave   = false;
             updateStatus('🎤 Listening… Speak now!', 'listening');
             break;
         }
@@ -354,20 +359,7 @@ function handleRealtimeEvent(evt) {
     }
 }
 
-/** POST the assistant transcript back to backend so conversation history stays in sync */
-async function syncTranscriptToBackend(text) {
-    try {
-        const result = await AtomAPI.post('/ai/text', {
-            message: `[Voice transcript — Atom said]: ${text}`,
-            conversationId: window.conversationId,
-            _syncOnly: true,
-        }, { timeoutMs: 10_000 });
-        if (result?.conversationId) window.conversationId = result.conversationId;
-    } catch (e) {
-        // Non-fatal — history sync failure shouldn't affect the user
-        console.warn('History sync failed:', e.message);
-    }
-}
+// History sync via /ai/text removed — caused double messages in conversation panel
 
 // ── Mic capture (ScriptProcessorNode → PCM16 → WebSocket) ────────────────────
 
@@ -396,7 +388,12 @@ async function startMicCapture() {
         micProcessor.connect(ctx.destination);
 
         // Also wire into analyser for waveform
-        source.connect(analyser);
+        // Connect mic through a GainNode so we can mute it during playback
+        // This prevents Atom's audio output from feeding back into VAD
+        window._micGain = audioCtx.createGain();
+        window._micGain.gain.value = 1;
+        source.connect(window._micGain);
+        window._micGain.connect(analyser);
 
         isRecording = true;
         updateRecordingUI(true);
