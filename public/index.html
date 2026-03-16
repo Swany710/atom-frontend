@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -275,6 +275,53 @@
         .status-text.info {
             color: #4488ff;
         }
+
+        /* Always-visible text input bar on main dashboard */
+        .main-text-bar {
+            width: 100%;
+            max-width: 520px;
+            display: flex;
+            gap: 0.5rem;
+            align-items: flex-end;
+            margin-top: 1.2rem;
+        }
+        .main-text-input {
+            flex: 1;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 0.65rem 0.85rem;
+            color: #fff;
+            font-size: 0.9rem;
+            font-family: inherit;
+            line-height: 1.4;
+            resize: none;
+            min-height: 40px;
+            max-height: 110px;
+            transition: border-color 0.2s;
+        }
+        .main-text-input:focus {
+            outline: none;
+            border-color: rgba(0,212,220,0.4);
+        }
+        .main-text-input::placeholder {
+            color: rgba(255,255,255,0.22);
+        }
+        .main-send-button {
+            background: rgba(0,212,220,0.12);
+            border: 1px solid rgba(0,212,220,0.25);
+            border-radius: 10px;
+            padding: 0 1rem;
+            color: #00d4dc;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            height: 40px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .main-send-button:hover { background: rgba(0,212,220,0.22); }
+        .main-send-button:disabled { opacity: 0.3; cursor: not-allowed; }
 
         @keyframes pulse {
             0%, 100% { opacity: 1; }
@@ -860,6 +907,18 @@
 
                 <!-- Whisper status -->
                 <div class="status-text" id="statusText"></div>
+
+                <!-- Always-visible text input -->
+                <div class="main-text-bar">
+                    <textarea
+                        class="main-text-input"
+                        id="mainTextInput"
+                        placeholder="Type a message to Atom..."
+                        rows="1"
+                        onkeydown="handleMainTextKeydown(event)"
+                    ></textarea>
+                    <button class="main-send-button" id="mainSendButton" onclick="sendTextFromMainInput()" disabled>Send</button>
+                </div>
             </div>
 
             <!-- Response Area -->
@@ -1684,6 +1743,33 @@
 
             const sendButton = document.getElementById('sendButton');
             sendButton.disabled = true;
+
+            // Wire main dashboard text input
+            const mainInput = document.getElementById('mainTextInput');
+            if (mainInput) {
+                mainInput.addEventListener('input', function() {
+                    this.style.height = 'auto';
+                    this.style.height = Math.min(this.scrollHeight, 110) + 'px';
+                    document.getElementById('mainSendButton').disabled = this.value.trim() === '';
+                });
+            }
+        }
+
+        function handleMainTextKeydown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendTextFromMainInput();
+            }
+        }
+
+        async function sendTextFromMainInput() {
+            const input = document.getElementById('mainTextInput');
+            const message = input.value.trim();
+            if (!message) return;
+            input.value = '';
+            input.style.height = 'auto';
+            document.getElementById('mainSendButton').disabled = true;
+            await sendTextMessage(message);
         }
 
         function handleTextInputKeydown(event) {
@@ -2738,7 +2824,9 @@
             const responseArea = document.getElementById('responseArea');
             const clickedInsideResponse = responseArea.contains(event.target);
             
-            if (!clickedInsideResponse && responseAreaPinned) {
+            const mainInputEl = document.getElementById('mainTextInput');
+            const clickedInMainInput = mainInputEl && mainInputEl.contains(event.target);
+            if (!clickedInsideResponse && !clickedInMainInput && responseAreaPinned) {
                 unpinResponseArea();
             }
             
