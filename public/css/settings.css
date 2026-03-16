@@ -1,0 +1,84 @@
+        .settings-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            z-index: 2000;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        .settings-overlay.visible { opacity: 1; visibility: visible; }
+
+        .settings-panel {
+            background: #07070f;
+            border: 1px solid rgba(34,197,94,0.3);
+            border-radius: 16px;
+            padding: 2rem;
+            width: 480px;
+            max-width: 95vw;
+            max-height: 85vh;
+            overflow-y: auto;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        .settings-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(34,197,94,0.2);
+            padding-bottom: 1rem;
+        }
+
+        .settings-title { font-size: 1.2rem; font-weight: 600; color: #00d4dc; }
+
+        .settings-close {
+            background: none; border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px; color: #aaa; cursor: pointer;
+            padding: 0.3rem 0.7rem; font-size: 1rem; transition: all 0.2s;
+        }
+        .settings-close:hover { border-color: #ef4444; color: #ef4444; }
+
+        .settings-section {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 12px;
+        }
+        .settings-section-title {
+            font-size: 0.85rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            color: #00d4dc; margin-bottom: 0.75rem;
+        }
+
+        .settings-row {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 0.6rem; gap: 0.5rem;
+        }
+        .settings-label { font-size: 0.9rem; color: #ccc; }
+        .settings-value { font-size: 0.9rem; color: #fff; font-weight: 500; }
+
+        .settings-btn {
+            background: rgba(34,197,94,0.15);
+            border: 1px solid rgba(34,197,94,0.4);
+            color: #00d4dc; border-radius: 8px;
+            padding: 0.5rem 1rem; cursor: pointer;
+            font-size: 0.85rem; transition: all 0.2s; width: 100%; margin-top: 0.5rem;
+        }
+        .settings-btn:hover {
+            background: rgba(34,197,94,0.25);
+            box-shadow: 0 0 12px rgba(34,197,94,0.2);
+        }
+
+        .settings-note {
+            font-size: 0.8rem; color: #888;
+            background: rgba(245,158,11,0.08);
+            border: 1px solid rgba(245,158,11,0.2);
+            border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem;
+            line-height: 1.5;
+        }
+        .settings-note a { color: #f59e0b; }
+        .settings-note code {
+            background: rgba(255,255,255,0.1); border-radius: 4px;
+            padding: 0 4px; font-size: 0.78rem;
+        }
