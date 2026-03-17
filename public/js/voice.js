@@ -6,7 +6,9 @@
  *   2. WebSocket to wss://api.openai.com/v1/realtime with that token
  *   3. Browser mic → PCM16 chunks → WebSocket → OpenAI (server VAD detects turns)
  *   4. OpenAI audio delta events → Web Audio API → speaker
- *   5. Interruptions: any new mic input during playback sends session.update
+ *   5. After each turn: sync user transcript + Atom response to backend memory
+ *      so switching to text mode carries the full conversation context.
+ *   6. Interruptions: any new mic input during playback sends session.update
  *      to cancel the current response immediately
  *
  * Falls back to legacy REST pipeline if WebSocket fails.
@@ -29,10 +31,18 @@ let isPlayingRealtime  = false;
 let realtimeSessionId  = null;
 let responseBuffer     = '';    // accumulates transcript deltas
 
+// Per-turn transcript tracking (for backend sync)
+let currentUserTranscript = '';   // user's speech for the current realtime turn
+
 // ── Legacy recording state (fallback) ────────────────────────────────────────
 let mediaRecorder    = null;
 let audioChunks      = [];
 let recordedMimeType = 'audio/webm';
+
+// ── Voice-to-Text state ───────────────────────────────────────────────────────
+let vttRecognition = null;
+let isVttActive    = false;
+let vttFinalBuffer = '';   // accumulated finalized dictation text
 
 // ── Waveform ──────────────────────────────────────────────────────────────────
 let waveCanvas, waveCtx, waveW, waveH;
@@ -306,9 +316,10 @@ function handleRealtimeEvent(evt) {
             updateStatus('Processing…', 'processing');
             break;
 
-        // Transcription of what user said
+        // Transcription of what user said — track for backend sync
         case 'conversation.item.input_audio_transcription.completed':
             if (evt.transcript?.trim()) {
+                currentUserTranscript = evt.transcript.trim();
                 addMessageToConversation('user', evt.transcript.trim());
                 pinResponseArea();
             }
@@ -333,12 +344,18 @@ function handleRealtimeEvent(evt) {
             if (transcript?.trim()) {
                 addMessageToConversation('assistant', transcript.trim());
                 pinResponseArea();
+                // ── Sync this turn to the backend session ──────────────────
+                // This ensures that switching to text mode carries the full
+                // voice conversation context (text uses the Atom/Claude backend,
+                // realtime voice uses OpenAI directly — they need to share state).
+                saveTurnToBackend(currentUserTranscript, transcript.trim());
+                currentUserTranscript = '';
             }
             responseBuffer = '';
             break;
         }
 
-        // response.done = full turn finished — reset state, no UI message (already shown above)
+        // response.done = full turn finished — reset state
         case 'response.done': {
             isProcessingWave = false;
             isSpeakingWave   = false;
@@ -359,7 +376,25 @@ function handleRealtimeEvent(evt) {
     }
 }
 
-// History sync via /ai/text removed — caused double messages in conversation panel
+// ── Backend sync — save each realtime turn so text mode has context ───────────
+
+async function saveTurnToBackend(userMsg, assistantMsg) {
+    if (!userMsg && !assistantMsg) return;
+    try {
+        const result = await AtomAPI.post('/ai/sync-turn', {
+            userMessage:      userMsg      || undefined,
+            assistantMessage: assistantMsg || undefined,
+            ...(window.conversationId && { conversationId: window.conversationId }),
+        }, { timeoutMs: 8_000 });
+        // Keep window.conversationId in sync so subsequent text calls use same session
+        if (result?.conversationId && !window.conversationId) {
+            window.conversationId = result.conversationId;
+        }
+    } catch (err) {
+        // Non-fatal — don't break the voice session if sync fails
+        console.warn('[Atom] sync-turn failed (non-fatal):', err?.message ?? err);
+    }
+}
 
 // ── Mic capture (ScriptProcessorNode → PCM16 → WebSocket) ────────────────────
 
@@ -435,6 +470,97 @@ async function toggleRecording() {
         // Start realtime session (falls back to legacy if WS fails)
         await startRealtimeSession();
     }
+}
+
+// ── Voice-to-Text mode ────────────────────────────────────────────────────────
+//
+// Uses the browser's built-in SpeechRecognition API to transcribe speech
+// into the text input box. The user can then review / edit the text
+// before clicking Send — giving them full control.
+
+function toggleVoiceToText() {
+    if (isVttActive) stopVoiceToText();
+    else             startVoiceToText();
+}
+
+function startVoiceToText() {
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) {
+        updateStatus('Voice-to-Text requires Chrome or Edge.', 'error');
+        return;
+    }
+
+    // Stop live voice if it's running
+    if (isRealtimeActive) cleanupRealtime();
+
+    const input = document.getElementById('mainTextInput');
+
+    vttRecognition = new SpeechRec();
+    vttRecognition.continuous     = true;
+    vttRecognition.interimResults = true;
+    vttRecognition.lang           = 'en-US';
+
+    // Seed the buffer with whatever is already in the input
+    vttFinalBuffer = input?.value?.trim() ?? '';
+
+    vttRecognition.onresult = (event) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            if (event.results[i].isFinal) {
+                const word = event.results[i][0].transcript.trim();
+                if (word) vttFinalBuffer += (vttFinalBuffer ? ' ' : '') + word;
+            } else {
+                interim += event.results[i][0].transcript;
+            }
+        }
+        // Put finalized text in the input so user can see/edit it
+        if (input) {
+            input.value = vttFinalBuffer + (interim ? ' ' + interim : '');
+            input.dispatchEvent(new Event('input')); // resize + enable Send button
+        }
+        updateStatus(interim ? `🎙️ "${interim}"` : '🎙️ Listening…', 'listening');
+    };
+
+    vttRecognition.onerror = (event) => {
+        if (event.error === 'no-speech') return; // just silence — keep going
+        updateStatus(`Dictation error: ${event.error}`, 'error');
+        stopVoiceToText();
+    };
+
+    vttRecognition.onend = () => {
+        // Chrome auto-stops on silence — restart so it's continuous until user stops
+        if (isVttActive) {
+            try { vttRecognition.start(); } catch(e) {}
+        }
+    };
+
+    vttRecognition.start();
+    isVttActive = true;
+
+    updateStatus('🎙️ Listening… Speak your message, then click Send', 'listening');
+    updateVttUI(true);
+}
+
+function stopVoiceToText() {
+    if (vttRecognition) {
+        try { vttRecognition.stop(); } catch(e) {}
+        vttRecognition = null;
+    }
+    isVttActive    = false;
+    vttFinalBuffer = '';
+    updateStatus('Dictation stopped. Edit your message and click Send.', 'info');
+    updateVttUI(false);
+}
+
+/** Expose so chat.js can reset the buffer after the user sends a message */
+window.resetVttBuffer = () => { vttFinalBuffer = ''; };
+
+function updateVttUI(active) {
+    const btn = document.getElementById('vttButton');
+    if (!btn) return;
+    btn.classList.toggle('recording', active);
+    btn.textContent = active ? '⏹ Stop Dictation' : '🎙️ Dictate';
+    btn.title       = active ? 'Click to stop dictating' : 'Click to dictate into text box';
 }
 
 // ── Error recovery — clear broken conversation session ────────────────────────

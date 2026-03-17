@@ -1,4 +1,4 @@
-﻿/**
+/**
  * chat.js — Text chat, conversation display, status updates, response panel.
  * Depends on: api.js (AtomAPI)
  */
@@ -6,6 +6,7 @@
 // ── Shared state (written here, read by voice.js) ─────────────────────────
 window.conversationMessages = [];
 window.conversationId       = null;
+window.inputMode            = 'live';   // 'live' | 'text' | 'vtt'
 
 // ── Backend status ─────────────────────────────────────────────────────────
 
@@ -136,6 +137,64 @@ function updateConversationDisplay() {
     if (container) container.scrollTop = container.scrollHeight;
 }
 
+// ── Input mode selector ────────────────────────────────────────────────────
+//
+// Three modes:
+//   live — full realtime voice (waveform + mic button active)
+//   text — text only (waveform hidden, voice off)
+//   vtt  — voice-to-text dictation (speak → text box → review → Send)
+
+function setInputMode(mode) {
+    window.inputMode = mode;
+
+    const waveContainer = document.querySelector('.waveform-container');
+    const waveControls  = document.querySelector('.wave-controls');
+    const vttContainer  = document.getElementById('vttButtonContainer');
+    const statusText    = document.getElementById('statusText');
+
+    // Update mode button styles
+    document.querySelectorAll('.atom-mode-btn').forEach(btn => {
+        btn.style.background = 'transparent';
+        btn.style.color      = '#94a3b8';
+        btn.style.fontWeight = 'normal';
+    });
+    const activeBtn = document.getElementById('mode-' + mode);
+    if (activeBtn) {
+        activeBtn.style.background = 'rgba(0,212,220,0.18)';
+        activeBtn.style.color      = '#00d4dc';
+        activeBtn.style.fontWeight = '600';
+    }
+
+    if (mode === 'live') {
+        if (waveContainer) waveContainer.style.display = '';
+        if (waveControls)  waveControls.style.display  = '';
+        if (vttContainer)  vttContainer.style.display  = 'none';
+        if (statusText)    statusText.style.display     = '';
+        // Stop VTT if running
+        if (typeof stopVoiceToText === 'function' && isVttActive) stopVoiceToText();
+        updateStatus('Click the mic or waveform to start listening.', 'info');
+
+    } else if (mode === 'text') {
+        if (waveContainer) waveContainer.style.display = 'none';
+        if (waveControls)  waveControls.style.display  = 'none';
+        if (vttContainer)  vttContainer.style.display  = 'none';
+        if (statusText)    statusText.style.display     = 'none';
+        // Stop live voice if running
+        if (typeof cleanupRealtime === 'function' && isRealtimeActive) cleanupRealtime();
+        // Stop VTT if running
+        if (typeof stopVoiceToText === 'function' && isVttActive) stopVoiceToText();
+
+    } else if (mode === 'vtt') {
+        if (waveContainer) waveContainer.style.display = 'none';
+        if (waveControls)  waveControls.style.display  = 'none';
+        if (vttContainer)  vttContainer.style.display  = '';
+        if (statusText)    statusText.style.display     = '';
+        // Stop live voice if running
+        if (typeof cleanupRealtime === 'function' && isRealtimeActive) cleanupRealtime();
+        updateStatus('Click "Dictate" to speak — your words appear in the text box below.', 'info');
+    }
+}
+
 // ── Text input ─────────────────────────────────────────────────────────────
 
 function setupTextInput() {
@@ -197,13 +256,20 @@ function handleMainTextKeydown(event) {
 }
 
 async function sendTextFromMainInput() {
-    const input = document.getElementById('mainTextInput');
+    const input   = document.getElementById('mainTextInput');
+    const sendBtn = document.getElementById('mainSendButton');
     const message = input.value.trim();
     if (!message) return;
     input.value = '';
     input.style.height = 'auto';
-    document.getElementById('mainSendButton').disabled = true;
-    await sendTextMessage(message);
+    if (sendBtn) sendBtn.disabled = true;
+    // Reset the VTT buffer so next dictation starts fresh
+    if (window.resetVttBuffer) window.resetVttBuffer();
+    try {
+        await sendTextMessage(message);
+    } finally {
+        if (sendBtn) sendBtn.disabled = true;
+    }
 }
 
 // ── Confirm / cancel action cards ──────────────────────────────────────────

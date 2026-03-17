@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,6 +9,68 @@
     <link rel="stylesheet" href="/css/base.css">
     <link rel="stylesheet" href="/css/panels.css">
     <link rel="stylesheet" href="/css/settings.css">
+
+    <style>
+        /* ── Input mode selector ─────────────────────────────────────────── */
+        .atom-mode-selector {
+            display: flex;
+            gap: 0;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.12);
+            max-width: 360px;
+            margin: 0 auto 0.85rem;
+        }
+        .atom-mode-btn {
+            flex: 1;
+            padding: 0.48rem 0;
+            font-size: 0.76rem;
+            background: transparent;
+            color: #94a3b8;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.18s, color 0.18s;
+            white-space: nowrap;
+        }
+        .atom-mode-btn + .atom-mode-btn {
+            border-left: 1px solid rgba(255,255,255,0.10);
+        }
+        .atom-mode-btn:hover {
+            background: rgba(255,255,255,0.06);
+            color: #cbd5e1;
+        }
+        /* ── Voice-to-Text button ────────────────────────────────────────── */
+        #vttButtonContainer {
+            text-align: center;
+            padding: 0.5rem 0 0.2rem;
+        }
+        #vttButton {
+            background: rgba(0,212,220,0.13);
+            color: #00d4dc;
+            border: 1px solid rgba(0,212,220,0.32);
+            border-radius: 22px;
+            padding: 0.55rem 1.5rem;
+            font-size: 0.88rem;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 600;
+            transition: background 0.18s, color 0.18s, border-color 0.18s;
+        }
+        #vttButton:hover {
+            background: rgba(0,212,220,0.22);
+        }
+        #vttButton.recording {
+            background: rgba(239,68,68,0.18);
+            color: #ef4444;
+            border-color: rgba(239,68,68,0.38);
+        }
+        #vttHint {
+            color: #5a6a7a;
+            font-size: 0.70rem;
+            margin-top: 0.35rem;
+        }
+    </style>
 </head>
 <body>
     <div class="app">
@@ -148,18 +210,45 @@
         <!-- Main Content -->
         <div class="main-content">
             <div class="voice-container">
-                <!-- Waveform — click to record -->
+
+                <!-- ── Input mode selector ──────────────────────────────── -->
+                <div class="atom-mode-selector">
+                    <button class="atom-mode-btn"
+                            id="mode-live"
+                            onclick="setInputMode('live')"
+                            style="background:rgba(0,212,220,0.18);color:#00d4dc;font-weight:600;">
+                        🎤 Live Chat
+                    </button>
+                    <button class="atom-mode-btn"
+                            id="mode-text"
+                            onclick="setInputMode('text')">
+                        📝 Text
+                    </button>
+                    <button class="atom-mode-btn"
+                            id="mode-vtt"
+                            onclick="setInputMode('vtt')">
+                        🎙️ Voice-to-Text
+                    </button>
+                </div>
+
+                <!-- Waveform — click to record (hidden in text / vtt modes) -->
                 <div class="waveform-container">
                     <canvas id="waveCanvas" class="wave-canvas" onclick="toggleRecording()" title="Click to speak"></canvas>
                 </div>
 
-                <!-- Minimal controls -->
+                <!-- Minimal controls (hidden in text / vtt modes) -->
                 <div class="wave-controls">
                     <div class="voice-button" id="voiceButton" onclick="toggleRecording()" title="Record">🎤</div>
                     <div class="voice-button" id="muteBtn" onclick="toggleVoiceResponse()" title="Mute">🔊</div>
                 </div>
 
-                <!-- Whisper status -->
+                <!-- Voice-to-Text dictation button (shown only in vtt mode) -->
+                <div id="vttButtonContainer" style="display:none;">
+                    <button id="vttButton" onclick="toggleVoiceToText()">🎙️ Dictate</button>
+                    <div id="vttHint">Speak your message — it appears below. Review, then click Send.</div>
+                </div>
+
+                <!-- Status text -->
                 <div class="status-text" id="statusText"></div>
 
                 <!-- Always-visible text input -->
