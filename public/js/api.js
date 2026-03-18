@@ -23,9 +23,19 @@
   /** Update the base URL (called by loadConfig). */
   function setBase(url) { _base = url.replace(/\/+$/, ''); }
 
-  /** Headers added to every request. Proxy injects the API key server-side. */
+  // -- Token / session helpers -----------------------------------------------
+  var TOKEN_KEY = 'atom_jwt';
+  function getToken()   { return localStorage.getItem(TOKEN_KEY); }
+  function setToken(t)  { localStorage.setItem(TOKEN_KEY, t); }
+  function clearToken() { localStorage.removeItem(TOKEN_KEY); }
+  function isLoggedIn() { return !!localStorage.getItem(TOKEN_KEY); }
+
+  /** Headers added to every request. Injects JWT if present. */
   function commonHeaders(extra) {
-    return Object.assign({ Accept: 'application/json' }, extra || {});
+    var h = { Accept: 'application/json' };
+    var tok = getToken();
+    if (tok) h['X-Atom-Token'] = tok;
+    return Object.assign(h, extra || {});
   }
 
   /**
@@ -42,7 +52,7 @@
   async function request(path, opts, cfg) {
     cfg = cfg || {};
     const timeoutMs = cfg.timeoutMs || DEFAULT_TIMEOUT_MS;
-    const url = path.startsWith('http') ? path : _base + path;
+    const url = (path.startsWith('http') || path.startsWith('/proxy/')) ? path : _base + path;
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
