@@ -70,9 +70,104 @@
             font-size: 0.70rem;
             margin-top: 0.35rem;
         }
+        /* ── Login / Auth screen ─────────────────────────────────────────── */
+        .auth-screen {
+            position: fixed; inset: 0; z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+            background: #060d14;
+        }
+        .auth-screen.hidden { display: none; }
+        .auth-card {
+            width: 360px; max-width: 94vw;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(0,212,220,0.18);
+            border-radius: 16px;
+            padding: 2rem 2rem 1.6rem;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+        }
+        .auth-logo {
+            text-align: center;
+            font-size: 2rem; font-weight: 700; letter-spacing: 0.08em;
+            color: #00d4dc; margin-bottom: 1.6rem;
+        }
+        .auth-tabs {
+            display: flex; gap: 0;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px; overflow: hidden; margin-bottom: 1.4rem;
+        }
+        .auth-tab {
+            flex: 1; padding: 0.5rem; font-size: 0.83rem;
+            background: transparent; color: #94a3b8;
+            border: none; cursor: pointer; font-family: inherit;
+            transition: background 0.15s, color 0.15s;
+        }
+        .auth-tab.active {
+            background: rgba(0,212,220,0.15); color: #00d4dc; font-weight: 600;
+        }
+        .auth-tab + .auth-tab { border-left: 1px solid rgba(255,255,255,0.1); }
+        .auth-input {
+            display: block; width: 100%; box-sizing: border-box;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 8px; color: #e2e8f0;
+            padding: 0.6rem 0.85rem; font-size: 0.88rem;
+            font-family: inherit; margin-bottom: 0.75rem;
+            outline: none; transition: border-color 0.15s;
+        }
+        .auth-input:focus { border-color: rgba(0,212,220,0.45); }
+        .auth-input::placeholder { color: #4a5568; }
+        .auth-btn {
+            display: block; width: 100%;
+            background: rgba(0,212,220,0.18);
+            border: 1px solid rgba(0,212,220,0.35);
+            border-radius: 8px; color: #00d4dc;
+            padding: 0.65rem; font-size: 0.9rem; font-weight: 600;
+            font-family: inherit; cursor: pointer; margin-top: 0.3rem;
+            transition: background 0.15s;
+        }
+        .auth-btn:hover { background: rgba(0,212,220,0.28); }
+        .auth-btn:disabled { opacity: 0.5; cursor: default; }
+        .auth-error {
+            color: #f87171; font-size: 0.78rem; text-align: center;
+            margin-top: 0.75rem; min-height: 1rem;
+        }
+        .auth-success {
+            color: #34d399; font-size: 0.78rem; text-align: center;
+            margin-top: 0.75rem;
+        }
     </style>
 </head>
 <body>
+
+    <!-- ══ AUTH SCREEN ══════════════════════════════════════════════════════ -->
+    <div class="auth-screen" id="authScreen">
+        <div class="auth-card">
+            <div class="auth-logo">Atom</div>
+
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="authTabLogin" onclick="authSwitchTab('login')">Sign In</button>
+                <button class="auth-tab" id="authTabRegister" onclick="authSwitchTab('register')">Register</button>
+            </div>
+
+            <!-- Login form -->
+            <div id="authFormLogin">
+                <input type="email" id="authLoginEmail" class="auth-input" placeholder="Email address" autocomplete="email">
+                <input type="password" id="authLoginPassword" class="auth-input" placeholder="Password" autocomplete="current-password">
+                <button class="auth-btn" id="authLoginBtn" onclick="handleAuthLogin()">Sign In</button>
+            </div>
+
+            <!-- Register form -->
+            <div id="authFormRegister" style="display:none;">
+                <input type="text" id="authRegName" class="auth-input" placeholder="Display name (optional)" autocomplete="name">
+                <input type="email" id="authRegEmail" class="auth-input" placeholder="Email address" autocomplete="email">
+                <input type="password" id="authRegPassword" class="auth-input" placeholder="Password (8+ characters)" autocomplete="new-password">
+                <button class="auth-btn" id="authRegisterBtn" onclick="handleAuthRegister()">Create Account</button>
+            </div>
+
+            <div class="auth-error" id="authError"></div>
+        </div>
+    </div>
+
     <div class="app">
 
         <!-- ══ SIDEBAR OVERLAY ════════════════════════════════════════════ -->
@@ -196,6 +291,10 @@
                         <div class="dropdown-item" onclick="clearConversation()">
                             <span>🗑️</span>
                             <span>Clear Chat</span>
+                        </div>
+                        <div class="dropdown-item" onclick="AtomAPI.logout()" style="color:#f87171;border-top:1px solid rgba(255,255,255,0.08);margin-top:0.25rem;padding-top:0.5rem;">
+                            <span>&#x1F6AA;</span>
+                            <span>Sign Out</span>
                         </div>
                     </div>
                 </div>
@@ -760,7 +859,57 @@
 
     <!-- Bootstrap -->
     <script>
-        document.addEventListener('DOMContentLoaded', async () => {
+        document.addEventListener('DOMContentLoaded', function() {
+            if (AtomAPI.isLoggedIn()) { showApp(); }
+            // else: auth screen visible by default
+        });
+
+        // ─── Auth screen ───────────────────────────────────────────────────
+        function authSwitchTab(tab) {
+            document.getElementById('authFormLogin').style.display    = tab === 'login'    ? '' : 'none';
+            document.getElementById('authFormRegister').style.display = tab === 'register' ? '' : 'none';
+            document.getElementById('authTabLogin').classList.toggle('active', tab === 'login');
+            document.getElementById('authTabRegister').classList.toggle('active', tab === 'register');
+            document.getElementById('authError').textContent = '';
+        }
+        async function handleAuthLogin() {
+            const email = document.getElementById('authLoginEmail').value.trim();
+            const password = document.getElementById('authLoginPassword').value;
+            const btn = document.getElementById('authLoginBtn');
+            const errEl = document.getElementById('authError');
+            errEl.textContent = '';
+            if (!email || !password) { errEl.textContent = 'Please enter email and password.'; return; }
+            btn.disabled = true; btn.textContent = 'Signing in...';
+            try { await AtomAPI.login(email, password); showApp(); }
+            catch (e) { errEl.textContent = e.message || 'Login failed.'; }
+            finally { btn.disabled = false; btn.textContent = 'Sign In'; }
+        }
+        async function handleAuthRegister() {
+            const name = document.getElementById('authRegName').value.trim();
+            const email = document.getElementById('authRegEmail').value.trim();
+            const password = document.getElementById('authRegPassword').value;
+            const btn = document.getElementById('authRegisterBtn');
+            const errEl = document.getElementById('authError');
+            errEl.textContent = '';
+            if (!email || !password) { errEl.textContent = 'Email and password are required.'; return; }
+            if (password.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; return; }
+            btn.disabled = true; btn.textContent = 'Creating account...';
+            try { await AtomAPI.register(email, password, name || undefined); showApp(); }
+            catch (e) { errEl.textContent = e.message || 'Registration failed.'; }
+            finally { btn.disabled = false; btn.textContent = 'Create Account'; }
+        }
+        document.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter') return;
+            const s = document.getElementById('authScreen');
+            if (!s || s.classList.contains('hidden')) return;
+            if (document.getElementById('authFormLogin').style.display !== 'none') handleAuthLogin();
+            else handleAuthRegister();
+        });
+        function showApp() {
+            document.getElementById('authScreen').classList.add('hidden');
+            bootApp();
+        }
+        async function bootApp() {
             await AtomAPI.loadConfig();
             initializeWaveform();
             startWaveformAnimation();

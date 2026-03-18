@@ -1,4 +1,4 @@
-/**
+﻿/**
  * api.js — Centralized API client for Atom frontend.
  *
  * All fetch() calls go through window.AtomAPI so:
@@ -206,11 +206,44 @@
 
   // ── Export ─────────────────────────────────────────────────────────────
 
+  // ─── Auth helpers ─────────────────────────────────────────────────────────
+
+  /** POST to /auth/login — stores token, returns { accessToken, userId, email } */
+  async function login(email, password) {
+    const res = await request('/proxy/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    }, { noRetry: true });
+    if (res && res.accessToken) setToken(res.accessToken);
+    return res;
+  }
+
+  /** POST to /auth/register — stores token, returns { accessToken, userId, email } */
+  async function register(email, password, displayName) {
+    const res = await request('/proxy/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, displayName }),
+    }, { noRetry: true });
+    if (res && res.accessToken) setToken(res.accessToken);
+    return res;
+  }
+
+  /** Clear stored token and reload to login screen */
+  function logout() {
+    clearToken();
+    window.location.reload();
+  }
+
   global.AtomAPI = {
     base, setBase, loadConfig,
     get, post, del, postForm, getRaw, postRaw,
     request,
     state, withButton, confirm,
+    // Auth
+    login, register, logout,
+    getToken, setToken, clearToken, isLoggedIn,
   };
 
 })(window);

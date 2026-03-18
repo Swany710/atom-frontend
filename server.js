@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const express  = require('express');
 const https    = require('https');
@@ -43,8 +43,15 @@ app.all('/proxy/*', (req, res) => {
   }
   delete headers['host'];
 
-  const apiKey = process.env.API_KEY || '';
-  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+  // If the frontend sends a user JWT, use it; otherwise fall back to API key
+  const userToken = req.headers['x-atom-token'];
+  delete headers['x-atom-token']; // strip before forwarding to backend
+  if (userToken) {
+    headers['Authorization'] = `Bearer ${userToken}`;
+  } else {
+    const apiKey = process.env.API_KEY || '';
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+  }
 
   const options = {
     hostname : targetUrl.hostname,
