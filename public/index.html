@@ -277,25 +277,18 @@
                     </div>
                     <div class="dropdown-menu" id="profileDropdown">
                         <div class="dropdown-item" onclick="openSettings()">
-                            <span>⚙️</span>
+                            <span>&#x2699;&#xFE0F;</span>
                             <span>Settings</span>
                         </div>
-                        <div class="dropdown-item" onclick="testAI()">
-                            <span>🧠</span>
-                            <span>Test AI</span>
-                        </div>
-                        <div class="dropdown-item" onclick="testBackend()">
-                            <span>🔧</span>
-                            <span>Test Backend</span>
-                        </div>
-                        <div class="dropdown-item" onclick="clearConversation()">
-                            <span>🗑️</span>
-                            <span>Clear Chat</span>
+                        <div class="dropdown-item" onclick="showPanel('connections');toggleProfileDropdown()">
+                            <span>&#x1F50C;</span>
+                            <span>Connections</span>
                         </div>
                         <div class="dropdown-item" onclick="AtomAPI.logout()" style="color:#f87171;border-top:1px solid rgba(255,255,255,0.08);margin-top:0.25rem;padding-top:0.5rem;">
                             <span>&#x1F6AA;</span>
                             <span>Sign Out</span>
                         </div>
+                    </div>
                     </div>
                 </div>
             </div>
