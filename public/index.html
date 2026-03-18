@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -229,8 +229,19 @@
                             onclick="setInputMode('vtt')">
                         🎙️ Voice-to-Text
                     </button>
+                
+                <!-- Audio response toggle ─ always visible in all modes -->
+                <div style="text-align:right;padding-right:6px;margin-bottom:0.25rem;">
+                    <button id="muteBtn"
+                            onclick="toggleVoiceResponse()"
+                            title="Audio response is ON ─ click to mute"
+                            style="font-size:0.72rem;padding:0.18rem 0.7rem;border-radius:20px;
+                                   background:transparent;border:1px solid rgba(0,212,220,0.35);
+                                   color:#00d4dc;cursor:pointer;font-family:inherit;
+                                   transition:color 0.18s,border-color 0.18s;">
+                        &#x1F50A; Audio
+                    </button>
                 </div>
-
                 <!-- Waveform — click to record (hidden in text / vtt modes) -->
                 <div class="waveform-container">
                     <canvas id="waveCanvas" class="wave-canvas" onclick="toggleRecording()" title="Click to speak"></canvas>
@@ -239,7 +250,6 @@
                 <!-- Minimal controls (hidden in text / vtt modes) -->
                 <div class="wave-controls">
                     <div class="voice-button" id="voiceButton" onclick="toggleRecording()" title="Record">🎤</div>
-                    <div class="voice-button" id="muteBtn" onclick="toggleVoiceResponse()" title="Mute">🔊</div>
                 </div>
 
                 <!-- Voice-to-Text dictation button (shown only in vtt mode) -->
@@ -772,3 +782,4 @@
 
 </body>
 </html>
+

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * voice.js — OpenAI Realtime API voice interface for Atom.
  *
  * Architecture:
@@ -695,9 +695,9 @@ function toggleVoiceResponse() {
     voiceResponseOn = !voiceResponseOn;
     const btn = document.getElementById('muteBtn');
     if (btn) {
-        btn.textContent       = voiceResponseOn ? '🔊' : '🔇';
-        btn.title             = voiceResponseOn ? 'Mute Atom voice' : 'Unmute Atom voice';
-        btn.style.color       = voiceResponseOn ? '#00d4dc' : '#666';
+        btn.innerHTML         = voiceResponseOn ? '&#x1F50A; Audio' : '&#x1F507; Muted';
+        btn.title             = voiceResponseOn ? 'Audio response ON \u2014 click to mute' : 'Audio response OFF \u2014 click to unmute';
+        btn.style.color       = voiceResponseOn ? '#00d4dc' : '#64748b';
         btn.style.borderColor = voiceResponseOn ? 'rgba(0,212,220,0.35)' : 'rgba(255,255,255,0.15)';
     }
     if (!voiceResponseOn) stopAllPlayback();
@@ -708,3 +708,5 @@ function initializeWaveformLegacy() {}
 function createSmoothPath() { return ''; }
 function connectAudioAnalyser() {}
 function disconnectAudioAnalyser() {}
+
+
