@@ -246,18 +246,17 @@
                 <div class="nav-item" id="nav-settings" onclick="openSettings();closeSidebar()">
                     <span class="nav-icon">⚙️</span> Settings
                 </div>
+                <div class="nav-item" onclick="AtomAPI.logout()" style="color:#f87171;border-top:1px solid rgba(255,255,255,0.08);margin-top:0.5rem;padding-top:0.5rem;">
+                    <span class="nav-icon">🚪</span> Sign Out
+                </div>
             </nav>
 
             <div class="sidebar-footer">
-                <span class="s-dot" id="sidebarDot"></span>
-                <span id="sidebarFooterText">Checking…</span>
+                <div class="memory-status" id="memoryStatus">
+                    <div class="memory-indicator"></div>
+                    <span id="memoryStatusText">Connecting...</span>
+                </div>
             </div>
-        </div>
-
-        <!-- Memory Status Indicator -->
-        <div class="memory-status" id="memoryStatus">
-            <div class="memory-indicator"></div>
-            <span id="memoryStatusText">Connecting...</span>
         </div>
 
         <!-- Header -->
@@ -265,31 +264,8 @@
             <div class="header-left">
                 <div class="back-button" onclick="toggleMenu()">≪</div>
             </div>
-            
             <div class="header-center">
                 <div class="title">Atom</div>
-            </div>
-            
-            <div class="header-right">
-                <div class="profile-dropdown">
-                    <div class="profile-button" onclick="toggleProfileDropdown()">
-                        👤
-                    </div>
-                    <div class="dropdown-menu" id="profileDropdown">
-                        <div class="dropdown-item" onclick="openSettings()">
-                            <span>&#x2699;&#xFE0F;</span>
-                            <span>Settings</span>
-                        </div>
-                        <div class="dropdown-item" onclick="showPanel('connections');toggleProfileDropdown()">
-                            <span>&#x1F50C;</span>
-                            <span>Connections</span>
-                        </div>
-                        <div class="dropdown-item" onclick="AtomAPI.logout()" style="color:#f87171;border-top:1px solid rgba(255,255,255,0.08);margin-top:0.25rem;padding-top:0.5rem;">
-                            <span>&#x1F6AA;</span>
-                            <span>Sign Out</span>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
 
