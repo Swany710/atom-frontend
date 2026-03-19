@@ -8,6 +8,18 @@
 
 const OAUTH_BASE = '/proxy/email/oauth';
 
+/**
+ * Returns fetch() headers that include the logged-in user's JWT so the proxy
+ * can forward it as Authorization: Bearer, ensuring every OAuth request is
+ * scoped to the requesting user — not the server owner.
+ */
+function _oauthHeaders(extra) {
+    const h = Object.assign({}, extra || {});
+    const tok = AtomAPI.getToken();
+    if (tok) h['X-Atom-Token'] = tok;
+    return h;
+}
+
 // ── Modal open / close ─────────────────────────────────────────────────────
 
 async function openSettings() {
@@ -25,6 +37,21 @@ function closeSettings() {
 // ── Status refresh ─────────────────────────────────────────────────────────
 
 async function refreshSettingsStatus() {
+    // Show which account is logged in by decoding the stored JWT
+    const accountEl = document.getElementById('accountEmail');
+    if (accountEl) {
+        try {
+            const tok = AtomAPI.getToken();
+            if (tok) {
+                const payload = JSON.parse(atob(tok.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+                accountEl.textContent = payload.email || '—';
+            } else {
+                accountEl.textContent = '—';
+            }
+        } catch (_) {
+            accountEl.textContent = '—';
+        }
+    }
     await Promise.all([refreshGmailStatus(), refreshOutlookStatus()]);
 }
 
@@ -40,7 +67,7 @@ async function refreshGmailStatus() {
     statusEl.textContent = '⏳ Checking…';
 
     try {
-        const r    = await fetch(OAUTH_BASE + '/gmail-status');
+        const r    = await fetch(OAUTH_BASE + '/gmail-status', { headers: _oauthHeaders() });
         const data = await r.json();
 
         if (data.connected) {
@@ -85,7 +112,7 @@ async function refreshOutlookStatus() {
     statusEl.textContent = '⏳ Checking…';
 
     try {
-        const r    = await fetch(OAUTH_BASE + '/outlook-status');
+        const r    = await fetch(OAUTH_BASE + '/outlook-status', { headers: _oauthHeaders() });
         const data = await r.json();
 
         if (data.connected) {
@@ -115,7 +142,7 @@ async function refreshOutlookStatus() {
 
 async function connectGmail() {
     try {
-        const resp = await fetch(OAUTH_BASE + '/url?provider=gmail');
+        const resp = await fetch(OAUTH_BASE + '/url?provider=gmail', { headers: _oauthHeaders() });
 
         if (!resp.ok) {
             const errText = await resp.text();
@@ -187,7 +214,7 @@ async function disconnectGmail() {
     const restore = disconnectBtn ? AtomAPI.withButton(disconnectBtn, 'Disconnecting…') : () => {};
 
     try {
-        const resp = await fetch(OAUTH_BASE + '/disconnect?provider=gmail', { method: 'DELETE' });
+        const resp = await fetch(OAUTH_BASE + '/disconnect?provider=gmail', { method: 'DELETE', headers: _oauthHeaders() });
         const data = await resp.json();
         if (data.success) {
             await refreshSettingsStatus();
@@ -206,7 +233,7 @@ async function disconnectGmail() {
 
 async function connectOutlook() {
     try {
-        const resp = await fetch(OAUTH_BASE + '/url?provider=outlook');
+        const resp = await fetch(OAUTH_BASE + '/url?provider=outlook', { headers: _oauthHeaders() });
 
         if (!resp.ok) {
             const errText = await resp.text();
@@ -278,7 +305,7 @@ async function disconnectOutlook() {
     const restore = disconnectBtn ? AtomAPI.withButton(disconnectBtn, 'Disconnecting…') : () => {};
 
     try {
-        const resp = await fetch(OAUTH_BASE + '/disconnect?provider=outlook', { method: 'DELETE' });
+        const resp = await fetch(OAUTH_BASE + '/disconnect?provider=outlook', { method: 'DELETE', headers: _oauthHeaders() });
         const data = await resp.json();
         if (data.success) {
             await refreshOutlookStatus();
