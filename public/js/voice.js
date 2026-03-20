@@ -420,7 +420,12 @@ async function startMicCapture() {
         };
 
         source.connect(micProcessor);
-        // micProcessor.connect(ctx.destination) -- removed: was causing voice echo;
+        // Connect to a zero-gain node so onaudioprocess fires (required by Web Audio API)
+        // but mic audio never reaches speakers — fixes echo AND keeps transcription working
+        const _silentOut = ctx.createGain();
+        _silentOut.gain.value = 0;
+        micProcessor.connect(_silentOut);
+        _silentOut.connect(ctx.destination);;
 
         // Also wire into analyser for waveform
         // Connect mic through a GainNode so we can mute it during playback
