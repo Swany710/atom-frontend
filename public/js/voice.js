@@ -1,11 +1,11 @@
-ï»¿/**
- * voice.js â OpenAI Realtime API voice interface for Atom.
+/**
+ * voice.js — OpenAI Realtime API voice interface for Atom.
  *
  * Architecture:
- *   1. POST /ai/realtime-token  â backend vends ephemeral OpenAI client secret
+ *   1. POST /ai/realtime-token  → backend vends ephemeral OpenAI client secret
  *   2. WebSocket to wss://api.openai.com/v1/realtime with that token
- *   3. Browser mic â PCM16 chunks â WebSocket â OpenAI (server VAD detects turns)
- *   4. OpenAI audio delta events â Web Audio API â speaker
+ *   3. Browser mic → PCM16 chunks → WebSocket → OpenAI (server VAD detects turns)
+ *   4. OpenAI audio delta events → Web Audio API → speaker
  *   5. After each turn: sync user transcript + Atom response to backend memory
  *      so switching to text mode carries the full conversation context.
  *   6. Interruptions: any new mic input during playback sends session.update
@@ -14,7 +14,7 @@
  * Falls back to legacy REST pipeline if WebSocket fails.
  */
 
-// ââ State âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── State ─────────────────────────────────────────────────────────────────────
 let realtimeWs        = null;   // WebSocket to OpenAI Realtime
 let micStream         = null;   // MediaStream from getUserMedia
 let micProcessor      = null;   // ScriptProcessorNode capturing PCM
@@ -34,17 +34,17 @@ let responseBuffer     = '';    // accumulates transcript deltas
 // Per-turn transcript tracking (for backend sync)
 let currentUserTranscript = '';   // user's speech for the current realtime turn
 
-// ââ Legacy recording state (fallback) ââââââââââââââââââââââââââââââââââââââââ
+// ── Legacy recording state (fallback) ────────────────────────────────────────
 let mediaRecorder    = null;
 let audioChunks      = [];
 let recordedMimeType = 'audio/webm';
 
-// ââ Voice-to-Text state âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Voice-to-Text state ───────────────────────────────────────────────────────
 let vttRecognition = null;
 let isVttActive    = false;
 let vttFinalBuffer = '';   // accumulated finalized dictation text
 
-// ââ Waveform ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Waveform ──────────────────────────────────────────────────────────────────
 let waveCanvas, waveCtx, waveW, waveH;
 let analyser, audioDataArray;
 let wavePhase  = 0;
@@ -153,7 +153,7 @@ function startWaveformAnimation() {
     loop();
 }
 
-// ââ Audio context âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Audio context ─────────────────────────────────────────────────────────────
 
 function getAudioCtx() {
     if (!audioCtx || audioCtx.state === 'closed') {
@@ -168,9 +168,9 @@ function getAudioCtx() {
     return audioCtx;
 }
 
-// ââ PCM helpers âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── PCM helpers ───────────────────────────────────────────────────────────────
 
-/** Float32 â Int16 PCM, base64 encoded â what OpenAI Realtime expects */
+/** Float32 → Int16 PCM, base64 encoded — what OpenAI Realtime expects */
 function float32ToBase64Pcm16(float32Array) {
     const buf = new Int16Array(float32Array.length);
     for (let i = 0; i < float32Array.length; i++) {
@@ -183,7 +183,7 @@ function float32ToBase64Pcm16(float32Array) {
     return btoa(binary);
 }
 
-/** base64 PCM16 â Float32Array â AudioBuffer for Web Audio playback */
+/** base64 PCM16 → Float32Array → AudioBuffer for Web Audio playback */
 function base64Pcm16ToFloat32(b64) {
     const binary = atob(b64);
     const bytes  = new Uint8Array(binary.length);
@@ -194,7 +194,7 @@ function base64Pcm16ToFloat32(b64) {
     return float;
 }
 
-// ââ Realtime audio playback queue âââââââââââââââââââââââââââââââââââââââââââââ
+// ── Realtime audio playback queue ─────────────────────────────────────────────
 
 let playbackQueue      = [];   // Float32Array chunks queued for playback
 let playbackScheduled  = 0;    // next start time in AudioContext clock
@@ -231,13 +231,13 @@ function stopAllPlayback() {
     if (currentAudio) { try { currentAudio.pause(); } catch(e){} currentAudio = null; }
     // Stop any in-flight Web Audio nodes by suspending + resuming
     if (audioCtx && audioCtx.state === 'running') {
-        // Don't close â just drain the queue
+        // Don't close — just drain the queue
         playbackScheduled = 0;
         playbackStarted   = false;
     }
 }
 
-// ââ Realtime WebSocket session ââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Realtime WebSocket session ────────────────────────────────────────────────
 
 async function startRealtimeSession() {
     try {
@@ -257,7 +257,7 @@ async function startRealtimeSession() {
         realtimeSessionId = token.sessionId;
 
         ws.onopen = () => {
-            console.log('â Realtime WS connected');
+            console.log('✅ Realtime WS connected');
             isRealtimeActive = true;
             startMicCapture();
         };
@@ -266,7 +266,7 @@ async function startRealtimeSession() {
 
         ws.onerror = (err) => {
             console.error('Realtime WS error:', err);
-            updateStatus('Voice connection error â retrying...', 'error');
+            updateStatus('Voice connection error — retrying...', 'error');
             cleanupRealtime();
         };
 
@@ -282,7 +282,7 @@ async function startRealtimeSession() {
 
     } catch (err) {
         console.error('Failed to start realtime session:', err);
-        updateStatus('Realtime unavailable â using standard voice', 'info');
+        updateStatus('Realtime unavailable — using standard voice', 'info');
         // Fall back to legacy pipeline
     }
 }
@@ -290,16 +290,16 @@ async function startRealtimeSession() {
 function handleRealtimeEvent(evt) {
     switch (evt.type) {
 
-        // Session is ready â update UI
+        // Session is ready — update UI
         case 'session.created':
         case 'session.updated':
-            updateStatus('ð¤ Listeningâ¦ Speak now!', 'listening');
+            updateStatus('🎤 Listening… Speak now!', 'listening');
             updateRecordingUI(true);
             break;
 
-        // User speech detected â interrupt any current playback
+        // User speech detected — interrupt any current playback
         case 'input_audio_buffer.speech_started':
-            // Restore mic gain â user is speaking (we muted it during playback)
+            // Restore mic gain — user is speaking (we muted it during playback)
             if (window._micGain) window._micGain.gain.value = 1;
             if (isSpeakingWave) {
                 stopAllPlayback();
@@ -308,15 +308,15 @@ function handleRealtimeEvent(evt) {
                 }
             }
             isProcessingWave = false;
-            updateStatus('ð¤ Listeningâ¦', 'listening');
+            updateStatus('🎤 Listening…', 'listening');
             break;
 
         case 'input_audio_buffer.speech_stopped':
             isProcessingWave = true;
-            updateStatus('Processingâ¦', 'processing');
+            updateStatus('Processing…', 'processing');
             break;
 
-        // Transcription of what user said â track for backend sync
+        // Transcription of what user said — track for backend sync
         case 'conversation.item.input_audio_transcription.completed':
             if (evt.transcript?.trim()) {
                 currentUserTranscript = evt.transcript.trim();
@@ -325,7 +325,7 @@ function handleRealtimeEvent(evt) {
             }
             break;
 
-        // Atom is speaking â stream audio chunks
+        // Atom is speaking — stream audio chunks
         case 'response.audio.delta':
             if (voiceResponseOn && evt.delta) {
                 const float32 = base64Pcm16ToFloat32(evt.delta);
@@ -344,10 +344,10 @@ function handleRealtimeEvent(evt) {
             if (transcript?.trim()) {
                 addMessageToConversation('assistant', transcript.trim());
                 pinResponseArea();
-                // ââ Sync this turn to the backend session ââââââââââââââââââ
+                // ── Sync this turn to the backend session ──────────────────
                 // This ensures that switching to text mode carries the full
                 // voice conversation context (text uses the Atom/Claude backend,
-                // realtime voice uses OpenAI directly â they need to share state).
+                // realtime voice uses OpenAI directly — they need to share state).
                 saveTurnToBackend(currentUserTranscript, transcript.trim());
                 currentUserTranscript = '';
             }
@@ -355,11 +355,11 @@ function handleRealtimeEvent(evt) {
             break;
         }
 
-        // response.done = full turn finished â reset state
+        // response.done = full turn finished — reset state
         case 'response.done': {
             isProcessingWave = false;
             isSpeakingWave   = false;
-            updateStatus('ð¤ Listeningâ¦ Speak now!', 'listening');
+            updateStatus('🎤 Listening… Speak now!', 'listening');
             break;
         }
 
@@ -376,7 +376,7 @@ function handleRealtimeEvent(evt) {
     }
 }
 
-// ââ Backend sync â save each realtime turn so text mode has context âââââââââââ
+// ── Backend sync — save each realtime turn so text mode has context ───────────
 
 async function saveTurnToBackend(userMsg, assistantMsg) {
     if (!userMsg && !assistantMsg) return;
@@ -391,12 +391,12 @@ async function saveTurnToBackend(userMsg, assistantMsg) {
             window.conversationId = result.conversationId;
         }
     } catch (err) {
-        // Non-fatal â don't break the voice session if sync fails
+        // Non-fatal — don't break the voice session if sync fails
         console.warn('[Atom] sync-turn failed (non-fatal):', err?.message ?? err);
     }
 }
 
-// ââ Mic capture (ScriptProcessorNode â PCM16 â WebSocket) ââââââââââââââââââââ
+// ── Mic capture (ScriptProcessorNode → PCM16 → WebSocket) ────────────────────
 
 async function startMicCapture() {
     try {
@@ -420,7 +420,7 @@ async function startMicCapture() {
         };
 
         source.connect(micProcessor);
-        // micProcessor.connect(ctx.destination) // fix: removed mic→speaker echo loopback;
+        // micProcessor.connect(ctx.destination) -- removed: was causing voice echo;
 
         // Also wire into analyser for waveform
         // Connect mic through a GainNode so we can mute it during playback
@@ -458,7 +458,7 @@ function cleanupRealtime() {
     isSpeakingWave    = false;
 }
 
-// ââ Main toggle âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Main toggle ───────────────────────────────────────────────────────────────
 
 async function toggleRecording() {
     if (isRealtimeActive) {
@@ -472,11 +472,11 @@ async function toggleRecording() {
     }
 }
 
-// ââ Voice-to-Text mode ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Voice-to-Text mode ────────────────────────────────────────────────────────
 //
 // Uses the browser's built-in SpeechRecognition API to transcribe speech
 // into the text input box. The user can then review / edit the text
-// before clicking Send â giving them full control.
+// before clicking Send — giving them full control.
 
 function toggleVoiceToText() {
     if (isVttActive) stopVoiceToText();
@@ -518,17 +518,17 @@ function startVoiceToText() {
             input.value = vttFinalBuffer + (interim ? ' ' + interim : '');
             input.dispatchEvent(new Event('input')); // resize + enable Send button
         }
-        updateStatus(interim ? `ðï¸ "${interim}"` : 'ðï¸ Listeningâ¦', 'listening');
+        updateStatus(interim ? `🎙️ "${interim}"` : '🎙️ Listening…', 'listening');
     };
 
     vttRecognition.onerror = (event) => {
-        if (event.error === 'no-speech') return; // just silence â keep going
+        if (event.error === 'no-speech') return; // just silence — keep going
         updateStatus(`Dictation error: ${event.error}`, 'error');
         stopVoiceToText();
     };
 
     vttRecognition.onend = () => {
-        // Chrome auto-stops on silence â restart so it's continuous until user stops
+        // Chrome auto-stops on silence — restart so it's continuous until user stops
         if (isVttActive) {
             try { vttRecognition.start(); } catch(e) {}
         }
@@ -537,7 +537,7 @@ function startVoiceToText() {
     vttRecognition.start();
     isVttActive = true;
 
-    updateStatus('ðï¸ Listeningâ¦ Speak your message, then click Send', 'listening');
+    updateStatus('🎙️ Listening… Speak your message, then click Send', 'listening');
     updateVttUI(true);
 }
 
@@ -559,17 +559,17 @@ function updateVttUI(active) {
     const btn = document.getElementById('vttButton');
     if (!btn) return;
     btn.classList.toggle('recording', active);
-    btn.textContent = active ? 'â¹ Stop Dictation' : 'ðï¸ Dictate';
+    btn.textContent = active ? '⏹ Stop Dictation' : '🎙️ Dictate';
     btn.title       = active ? 'Click to stop dictating' : 'Click to dictate into text box';
 }
 
-// ââ Error recovery â clear broken conversation session ââââââââââââââââââââââââ
+// ── Error recovery — clear broken conversation session ────────────────────────
 
 async function clearBrokenSession() {
     if (!window.conversationId) return;
     try {
         await AtomAPI.del(`/ai/conversations/${window.conversationId}`, { timeoutMs: 5_000 });
-        console.log('ð§¹ Cleared broken conversation session:', window.conversationId);
+        console.log('🧹 Cleared broken conversation session:', window.conversationId);
     } catch(e) {
         console.warn('Could not clear session:', e.message);
     } finally {
@@ -577,7 +577,7 @@ async function clearBrokenSession() {
     }
 }
 
-// ââ Legacy REST fallback (used if Realtime WS is unavailable) âââââââââââââââââ
+// ── Legacy REST fallback (used if Realtime WS is unavailable) ─────────────────
 
 function updateRecordingUI(recording) {
     const voiceButton = document.getElementById('voiceButton');
@@ -587,7 +587,7 @@ function updateRecordingUI(recording) {
 }
 
 function emergencyResetRecording() {
-    console.log('ð¨ Emergency reset');
+    console.log('🚨 Emergency reset');
     cleanupRealtime();
     if (mediaRecorder) {
         try { if (mediaRecorder.state === 'recording') mediaRecorder.stop(); } catch(e){}
@@ -595,7 +595,7 @@ function emergencyResetRecording() {
     }
     mediaRecorder = null; audioChunks = [];
     updateRecordingUI(false);
-    updateStatus('Reset complete â ready.', 'info');
+    updateStatus('Reset complete — ready.', 'info');
 }
 
 function stopRecording() {
@@ -605,7 +605,7 @@ function stopRecording() {
         isRecording = false;
         updateRecordingUI(false);
         isProcessingWave = true;
-        updateStatus('Processingâ¦', 'processing');
+        updateStatus('Processing…', 'processing');
     } catch(e) { emergencyResetRecording(); }
 }
 
@@ -625,7 +625,7 @@ async function startRecording() {
         mediaRecorder.start();
         isRecording = true;
         updateRecordingUI(true);
-        updateStatus('ð¤ Listeningâ¦ (Click to stop)', 'listening');
+        updateStatus('🎤 Listening… (Click to stop)', 'listening');
     } catch(e) {
         updateStatus('Microphone error: ' + e.message, 'error');
     }
@@ -656,9 +656,9 @@ async function processLegacyAudio() {
 
         // Auto-clear broken session on 400
         if (err.status === 400 || (err.message && err.message.includes('tool_use_id'))) {
-            console.warn('ð§¹ Detected broken session â auto-clearing history');
+            console.warn('🧹 Detected broken session — auto-clearing history');
             await clearBrokenSession();
-            updateStatus('Session reset â please try again.', 'info');
+            updateStatus('Session reset — please try again.', 'info');
         } else {
             updateStatus('Voice error: ' + err.message, 'error');
         }
@@ -669,7 +669,7 @@ async function processLegacyAudio() {
     }
 }
 
-// ââ TTS playback (legacy / text responses) ââââââââââââââââââââââââââââââââââââ
+// ── TTS playback (legacy / text responses) ────────────────────────────────────
 
 async function playResponseAudio(text) {
     if (!voiceResponseOn || !text?.trim()) return;
@@ -684,9 +684,10 @@ async function playResponseAudio(text) {
         const src = ctx.createMediaElementSource(currentAudio);
         src.connect(analyser);
         isSpeakingWave = true;
-        currentAudio.onended = () => { isSpeakingWave = false; URL.revokeObjectURL(url); if (window._micGain) { window._micGain.gain.value = 1; } };
-        if (window._micGain) { window._micGain.gain.value = 0; }
-        await currentAudio.play();
+        currentAudio.onended = () => {
+    if (window._micGain) window._micGain.gain.value = 1; isSpeakingWave = false; URL.revokeObjectURL(url); };
+        if (window._micGain) window._micGain.gain.value = 0;
+  await currentAudio.play();
     } catch(e) { isSpeakingWave = false; }
 }
 
@@ -704,7 +705,7 @@ function toggleVoiceResponse() {
     if (!voiceResponseOn) stopAllPlayback();
 }
 
-// ââ Legacy stubs ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Legacy stubs ──────────────────────────────────────────────────────────────
 function initializeWaveformLegacy() {}
 function createSmoothPath() { return ''; }
 function connectAudioAnalyser() {}
