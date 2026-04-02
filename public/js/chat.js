@@ -99,12 +99,17 @@ function updateConversationDisplay() {
             .replace(/🎤\s*"/g, '"')
             .replace(/[\u{1F000}-\u{1FFFF}]|[\u{2600}-\u{27BF}]/gu, '')
             .trim();
+        // HTML-encode before injecting into innerHTML to prevent XSS.
+        // esc() encodes &, <, >, and " — making injected scripts inert.
+        // The .replace(/\n/g, '<br>') below is safe because it runs on the
+        // already-encoded string and only inserts a literal tag we control.
+        const safeContent = esc(cleanContent);
 
         if (message.role === 'user') {
             html += `
                 <div class="conversation-message user-message">
                     <div class="message-sender">You</div>
-                    <div class="message-content">${cleanContent}</div>
+                    <div class="message-content">${safeContent}</div>
                 </div>`;
         } else {
             const isConfirmation = message.content.includes('Shall I go ahead') ||
@@ -113,7 +118,7 @@ function updateConversationDisplay() {
                 html += `
                     <div class="conversation-message assistant-message confirm-card" id="confirm-${idx}">
                         <div class="message-sender">Atom — Action needed</div>
-                        <div class="message-content confirm-body">${cleanContent.replace(/\n/g, '<br>')}</div>
+                        <div class="message-content confirm-body">${safeContent.replace(/\n/g, '<br>')}</div>
                         <div class="confirm-buttons">
                             <button class="confirm-yes-btn" onclick="confirmAction(${idx})">Confirm</button>
                             <button class="confirm-no-btn"  onclick="cancelAction(${idx})">Cancel</button>
@@ -123,7 +128,7 @@ function updateConversationDisplay() {
                 html += `
                     <div class="conversation-message assistant-message">
                         <div class="message-sender">Atom</div>
-                        <div class="message-content">${cleanContent.replace(/\n/g, '<br>')}</div>
+                        <div class="message-content">${safeContent.replace(/\n/g, '<br>')}</div>
                     </div>`;
             }
         }
