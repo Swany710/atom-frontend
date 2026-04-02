@@ -4,7 +4,28 @@ const express  = require('express');
 const https    = require('https');
 const http     = require('http');
 const path     = require('path');
+const helmet   = require('helmet');
 const app      = express();
+
+// ─── Security headers ──────────────────────────────────────────────────────────
+// Sets X-Content-Type-Options, X-Frame-Options, Strict-Transport-Security,
+// Referrer-Policy, X-XSS-Protection, and a Content-Security-Policy that
+// restricts scripts, styles, and media to this origin only.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:  ["'self'"],
+      scriptSrc:   ["'self'", "'unsafe-inline'"],   // inline scripts used throughout public/js
+      styleSrc:    ["'self'", "'unsafe-inline'"],   // inline styles used in index.html
+      mediaSrc:    ["'self'", 'blob:'],             // blob: URLs for recorded audio playback
+      connectSrc:  ["'self'"],                      // all API calls go through /proxy on same origin
+      imgSrc:      ["'self'", 'data:'],
+      fontSrc:     ["'self'"],
+      objectSrc:   ["'none'"],
+      frameAncestors: ["'none'"],                   // equivalent to X-Frame-Options: DENY
+    },
+  },
+}));
 
 const PORT = process.env.PORT || 3000;
 
