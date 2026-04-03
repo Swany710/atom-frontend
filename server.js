@@ -30,7 +30,7 @@ app.use(helmet({
 const PORT = process.env.PORT || 3000;
 
 // ─── Startup env validation ────────────────────────────────────────────────────
-const BACKEND_BASE = (process.env.API_BASE_URL || 'https://atom-backend-production-8a1e.up.railway.app')
+const BACKEND_BASE = (process.env.API_BASE_URL || 'http://localhost:3000')
   .replace(/\/+$/, '');
 
 if (!process.env.API_BASE_URL) console.warn('⚠️  API_BASE_URL not set — using default:', BACKEND_BASE);
