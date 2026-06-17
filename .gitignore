@@ -1,0 +1,9 @@
+# Node
+node_modules/
+.npm-cache/
+npm-debug.log
+.env
+
+# macOS / Windows cruft
+.DS_Store
+Thumbs.db

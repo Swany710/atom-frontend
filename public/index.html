@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atom - Personal AI Assistant</title>
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/panels.css">
+    <link rel="stylesheet" href="/css/settings.css">
+
+    <style>
+        /* ── Input mode selector ─────────────────────────────────────────── */
+        .atom-mode-selector {
+            display: flex;
+            gap: 0;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.12);
+            max-width: 360px;
+            margin: 0 auto 0.85rem;
+        }
+        .atom-mode-btn {
+            flex: 1;
+            padding: 0.48rem 0;
+            font-size: 0.76rem;
+            background: transparent;
+            color: #94a3b8;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.18s, color 0.18s;
+            white-space: nowrap;
+        }
+        .atom-mode-btn + .atom-mode-btn {
+            border-left: 1px solid rgba(255,255,255,0.10);
+        }
+        .atom-mode-btn:hover {
+            background: rgba(255,255,255,0.06);
+            color: #cbd5e1;
+        }
+        /* ── Voice-to-Text button ────────────────────────────────────────── */
+        #vttButtonContainer {
+            text-align: center;
+            padding: 0.5rem 0 0.2rem;
+        }
+        #vttButton {
+            background: rgba(0,212,220,0.13);
+            color: #00d4dc;
+            border: 1px solid rgba(0,212,220,0.32);
+            border-radius: 22px;
+            padding: 0.55rem 1.5rem;
+            font-size: 0.88rem;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 600;
+            transition: background 0.18s, color 0.18s, border-color 0.18s;
+        }
+        #vttButton:hover {
+            background: rgba(0,212,220,0.22);
+        }
+        #vttButton.recording {
+            background: rgba(239,68,68,0.18);
+            color: #ef4444;
+            border-color: rgba(239,68,68,0.38);
+        }
+        #vttHint {
+            color: #5a6a7a;
+            font-size: 0.70rem;
+            margin-top: 0.35rem;
+        }
+        /* ── Login / Auth screen ─────────────────────────────────────────── */
+        .auth-screen {
+            position: fixed; inset: 0; z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+            background: #060d14;
+        }
+        .auth-screen.hidden { display: none; }
+        .auth-card {
+            width: 360px; max-width: 94vw;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(0,212,220,0.18);
+            border-radius: 16px;
+            padding: 2rem 2rem 1.6rem;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+        }
+        .auth-logo {
+            text-align: center;
+            font-size: 2rem; font-weight: 700; letter-spacing: 0.08em;
+            color: #00d4dc; margin-bottom: 1.6rem;
+        }
+        .auth-tabs {
+            display: flex; gap: 0;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px; overflow: hidden; margin-bottom: 1.4rem;
+        }
+        .auth-tab {
+            flex: 1; padding: 0.5rem; font-size: 0.83rem;
+            background: transparent; color: #94a3b8;
+            border: none; cursor: pointer; font-family: inherit;
+            transition: background 0.15s, color 0.15s;
+        }
+        .auth-tab.active {
+            background: rgba(0,212,220,0.15); color: #00d4dc; font-weight: 600;
+        }
+        .auth-tab + .auth-tab { border-left: 1px solid rgba(255,255,255,0.1); }
+        .auth-input {
+            display: block; width: 100%; box-sizing: border-box;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 8px; color: #e2e8f0;
+            padding: 0.6rem 0.85rem; font-size: 0.88rem;
+            font-family: inherit; margin-bottom: 0.75rem;
+            outline: none; transition: border-color 0.15s;
+        }
+        .auth-input:focus { border-color: rgba(0,212,220,0.45); }
+        .auth-input::placeholder { color: #4a5568; }
+        .auth-btn {
+            display: block; width: 100%;
+            background: rgba(0,212,220,0.18);
+            border: 1px solid rgba(0,212,220,0.35);
+            border-radius: 8px; color: #00d4dc;
+            padding: 0.65rem; font-size: 0.9rem; font-weight: 600;
+            font-family: inherit; cursor: pointer; margin-top: 0.3rem;
+            transition: background 0.15s;
+        }
+        .auth-btn:hover { background: rgba(0,212,220,0.28); }
+        .auth-btn:disabled { opacity: 0.5; cursor: default; }
+        .auth-error {
+            color: #f87171; font-size: 0.78rem; text-align: center;
+            margin-top: 0.75rem; min-height: 1rem;
+        }
+        .auth-success {
+            color: #34d399; font-size: 0.78rem; text-align: center;
+            margin-top: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ══ AUTH SCREEN ══════════════════════════════════════════════════════ -->
+    <div class="auth-screen" id="authScreen">
+        <div class="auth-card">
+            <div class="auth-logo">Atom</div>
+
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="authTabLogin" onclick="authSwitchTab('login')">Sign In</button>
+                <button class="auth-tab" id="authTabRegister" onclick="authSwitchTab('register')">Register</button>
+            </div>
+
+            <!-- Login form -->
+            <div id="authFormLogin">
+                <input type="email" id="authLoginEmail" class="auth-input" placeholder="Email address" autocomplete="email">
+                <input type="password" id="authLoginPassword" class="auth-input" placeholder="Password" autocomplete="current-password">
+                <button class="auth-btn" id="authLoginBtn" onclick="handleAuthLogin()">Sign In</button>
+            </div>
+
+            <!-- Register form -->
+            <div id="authFormRegister" style="display:none;">
+                <input type="text" id="authRegName" class="auth-input" placeholder="Display name (optional)" autocomplete="name">
+                <input type="email" id="authRegEmail" class="auth-input" placeholder="Email address" autocomplete="email">
+                <input type="password" id="authRegPassword" class="auth-input" placeholder="Password (8+ characters)" autocomplete="new-password">
+                <button class="auth-btn" id="authRegisterBtn" onclick="handleAuthRegister()">Create Account</button>
+            </div>
+
+            <div class="auth-error" id="authError"></div>
+        </div>
+    </div>
+
+    <div class="app">
+
+        <!-- ══ SIDEBAR OVERLAY ════════════════════════════════════════════ -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+        <!-- ══ SIDEBAR DRAWER ════════════════════════════════════════════ -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <span class="sidebar-logo">⚡ Atom</span>
+                <button class="sidebar-close" onclick="closeSidebar()">✕</button>
+            </div>
+
+            <nav class="sidebar-nav">
+                <!-- Dashboard -->
+                <div class="nav-item active" id="nav-chat" onclick="showPanel('chat')">
+                    <span class="nav-icon">💬</span> Dashboard
+                </div>
+
+                <!-- Email -->
+                <div class="nav-group-title">Email</div>
+                <div class="nav-item" id="nav-inbox" onclick="showPanel('inbox')">
+                    <span class="nav-icon">📥</span> Inbox
+                </div>
+                <div class="nav-item" id="nav-compose" onclick="showPanel('compose')">
+                    <span class="nav-icon">✏️</span> Compose
+                </div>
+                <div class="nav-item" id="nav-drafts" onclick="showPanel('drafts')">
+                    <span class="nav-icon">📝</span> Drafts
+                </div>
+                <div class="nav-item" id="nav-sent" onclick="showPanel('sent')">
+                    <span class="nav-icon">📤</span> Sent
+                </div>
+
+                <!-- Calendar -->
+                <div class="nav-group-title">Calendar</div>
+                <div class="nav-item" id="nav-today" onclick="showPanel('today')">
+                    <span class="nav-icon">📅</span> Today
+                </div>
+                <div class="nav-item" id="nav-newevent" onclick="showPanel('newevent')">
+                    <span class="nav-icon">➕</span> New Event
+                </div>
+                <div class="nav-item" id="nav-calview" onclick="showPanel('calview')">
+                    <span class="nav-icon">🗓️</span> Calendar View
+                </div>
+
+
+                <!-- CRM -->
+                <div class="nav-group-title">AccuLynx CRM</div>
+                <div class="nav-item" id="nav-crm-jobs" onclick="showPanel('crm-jobs')">
+                    <span class="nav-icon">🏗️</span> Jobs
+                </div>
+                <div class="nav-item" id="nav-crm-contacts" onclick="showPanel('crm-contacts')">
+                    <span class="nav-icon">👥</span> Contacts
+                </div>
+                <div class="nav-item" id="nav-crm-lead" onclick="showPanel('crm-lead')">
+                    <span class="nav-icon">➕</span> New Lead
+                </div>
+
+                <!-- Memory & Data -->
+                <div class="nav-group-title">Memory &amp; Data</div>
+                <div class="nav-item" id="nav-conversations" onclick="showPanel('conversations')">
+                    <span class="nav-icon">💭</span> Conversations
+                </div>
+                <div class="nav-item" id="nav-tasks" onclick="showPanel('tasks')">
+                    <span class="nav-icon">✅</span> Tasks
+                </div>
+                <div class="nav-item" id="nav-knowledge" onclick="showPanel('knowledge')">
+                    <span class="nav-icon">🧠</span> Knowledge Base
+                </div>
+
+                <!-- Account -->
+                <div class="nav-group-title">Account</div>
+                <div class="nav-item" id="nav-connections" onclick="showPanel('connections')">
+                    <span class="nav-icon">🔌</span> Connections
+                </div>
+                <div class="nav-item" id="nav-settings" onclick="openSettings();closeSidebar()">
+                    <span class="nav-icon">⚙️</span> Settings
+                </div>
+                <div class="nav-item" onclick="AtomAPI.logout()" style="color:#f87171;border-top:1px solid rgba(255,255,255,0.08);margin-top:0.5rem;padding-top:0.5rem;">
+                    <span class="nav-icon">🚪</span> Sign Out
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="memory-status" id="memoryStatus">
+                    <div class="memory-indicator"></div>
+                    <span id="memoryStatusText">Connecting...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Header -->
+        <div class="header">
+            <div class="header-left">
+                <div class="back-button menu-toggle" onclick="toggleMenu()" title="Menu" role="button" aria-label="Open navigation menu">☰</div>
+            </div>
+            <div class="header-center">
+                <div class="title">Atom</div>
+            </div>
+        </div>
+
+        <!-- ══ PANELS WRAPPER ════════════════════════════════════════════ -->
+        <div class="panels-wrapper">
+
+        <!-- ══ PANEL: Dashboard (Chat) ══════════════════════════════════ -->
+        <div class="panel-view active" id="panel-chat">
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="voice-container">
+
+                <!-- ── Input mode selector ──────────────────────────────── -->
+                <div class="atom-mode-selector">
+                    <button class="atom-mode-btn"
+                            id="mode-live"
+                            onclick="setInputMode('live')"
+                            style="background:rgba(0,212,220,0.18);color:#00d4dc;font-weight:600;">
+                        🎤 Live Chat
+                    </button>
+                    <button class="atom-mode-btn"
+                            id="mode-text"
+                            onclick="setInputMode('text')">
+                        📝 Text
+                    </button>
+                    <button class="atom-mode-btn"
+                            id="mode-vtt"
+                            onclick="setInputMode('vtt')">
+                        🎙️ Voice-to-Text
+                    </button>
+                </div>
+                <!-- Audio response toggle ─ always visible in all modes -->
+                <div style="text-align:right;padding-right:6px;margin-bottom:0.25rem;">
+                    <button id="muteBtn"
+                            onclick="toggleVoiceResponse()"
+                            title="Audio response is ON ─ click to mute"
+                            style="font-size:0.72rem;padding:0.18rem 0.7rem;border-radius:20px;
+                                   background:transparent;border:1px solid rgba(0,212,220,0.35);
+                                   color:#00d4dc;cursor:pointer;font-family:inherit;
+                                   transition:color 0.18s,border-color 0.18s;">
+                        &#x1F50A; Audio
+                    </button>
+                </div>
+                <!-- Waveform — click to record (hidden in text / vtt modes) -->
+                <div class="waveform-container">
+                    <canvas id="waveCanvas" class="wave-canvas" onclick="toggleRecording()" title="Click to speak"></canvas>
+                </div>
+
+                <!-- Minimal controls (hidden in text / vtt modes) -->
+                <div class="wave-controls">
+                    <div class="voice-button" id="voiceButton" onclick="toggleRecording()" title="Record">🎤</div>
+                </div>
+
+                <!-- Voice-to-Text dictation button (shown only in vtt mode) -->
+                <div id="vttButtonContainer" style="display:none;">
+                    <button id="vttButton" onclick="toggleVoiceToText()">🎙️ Dictate</button>
+                    <div id="vttHint">Speak your message — it appears below. Review, then click Send.</div>
+                </div>
+
+                <!-- Status text -->
+                <div class="status-text" id="statusText"></div>
+
+                <!-- Always-visible text input -->
+                <div class="main-text-bar">
+                    <textarea
+                        class="main-text-input"
+                        id="mainTextInput"
+                        placeholder="Type a message to Atom..."
+                        rows="1"
+                        onkeydown="handleMainTextKeydown(event)"
+                    ></textarea>
+                    <button type="button" class="face-dictate-btn" id="faceDictateBtn"
+                            onclick="toggleVoiceToText()" aria-pressed="false"
+                            title="Tap to dictate — speak and your words become text"
+                            aria-label="Voice to text dictation">
+                        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                            <circle class="face-outline" cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/>
+                            <circle class="face-eye" cx="9"  cy="10" r="1.15" fill="currentColor"/>
+                            <circle class="face-eye" cx="15" cy="10" r="1.15" fill="currentColor"/>
+                            <path class="face-mouth" d="M8.5 14 Q12 16.8 15.5 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                    <button class="main-send-button" id="mainSendButton" onclick="sendTextFromMainInput()" disabled>Send</button>
+                </div>
+            </div>
+
+            <!-- Response Area -->
+            <div class="response-area" id="responseArea">
+                <div class="response-header">
+                    <div class="response-title">Conversation</div>
+                    <div class="conversation-controls">
+                        <button class="control-button" onclick="clearConversation()" title="Clear">Clear</button>
+                        <button class="control-button" onclick="closePanel()" title="Close">✕</button>
+                    </div>
+                </div>
+                
+                <div class="response-content-container">
+                    <div class="response-content" id="responseContent">
+                        <div class="conversation-welcome">
+                            <div style="color:rgba(255,255,255,0.35);font-size:0.85rem;">Start speaking or type below.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-input-section">
+                    <div class="text-input-container">
+                        <textarea 
+                            class="text-input" 
+                            id="textInput" 
+                            placeholder="Type your message here..."
+                            rows="1"
+                            onkeydown="handleTextInputKeydown(event)"
+                            onclick="event.stopPropagation()"
+                        ></textarea>
+                        <button class="send-button" id="sendButton" onclick="sendTextFromInput()">
+                            Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div><!-- /panel-chat -->
+
+        <!-- ══ PANEL: Inbox ══════════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-inbox">
+            <div class="panel-header">
+                <span class="panel-title">📥 Inbox</span>
+                <button class="panel-action-btn" onclick="loadInbox()">↻ Refresh</button>
+            </div>
+            <div class="panel-body" id="inboxBody">
+                <p class="panel-msg">Loading inbox…</p>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: Compose ════════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-compose">
+            <div class="panel-header">
+                <span class="panel-title">✏️ Compose Email</span>
+            </div>
+            <div class="panel-body">
+                <div class="form-group">
+                    <label class="form-label">To</label>
+                    <input class="form-input" id="composeTo" type="email" placeholder="recipient@example.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Subject</label>
+                    <input class="form-input" id="composeSubject" type="text" placeholder="Subject…">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Message</label>
+                    <textarea class="form-textarea" id="composeBody" placeholder="Write your message…"></textarea>
+                </div>
+                <button class="form-submit-btn" id="composeSendBtn" onclick="sendComposedEmail()">📤 Send Email</button>
+                <p class="panel-msg" id="composeStatus" style="display:none;"></p>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: Drafts ══════════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-drafts">
+            <div class="panel-header">
+                <span class="panel-title">📝 Drafts</span>
+            </div>
+            <div class="panel-body">
+                <div class="placeholder-card">
+                    <div class="placeholder-icon">📝</div>
+                    <div class="placeholder-text">Drafts will appear here once Gmail sync is active.<br><br>Connect Gmail in <strong>Settings</strong> to enable.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: Sent ════════════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-sent">
+            <div class="panel-header">
+                <span class="panel-title">📤 Sent</span>
+                <button class="panel-action-btn" onclick="loadSent()">↻ Refresh</button>
+            </div>
+            <div class="panel-body" id="sentBody">
+                <p class="panel-msg">Loading sent mail…</p>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: Today ═══════════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-today">
+            <div class="panel-header">
+                <span class="panel-title">📅 Today</span>
+                <button class="panel-action-btn" onclick="loadTodayEvents()">↻ Refresh</button>
+            </div>
+            <div class="panel-body" id="todayBody">
+                <p class="panel-msg">Loading today's events…</p>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: New Event ═══════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-newevent">
+            <div class="panel-header">
+                <span class="panel-title">➕ New Calendar Event</span>
+            </div>
+            <div class="panel-body">
+                <div class="form-group">
+                    <label class="form-label">Event Title</label>
+                    <input class="form-input" id="eventTitle" type="text" placeholder="Meeting with…">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date</label>
+                    <input class="form-input" id="eventDate" type="date">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Time</label>
+                    <input class="form-input" id="eventTime" type="time">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Duration (minutes)</label>
+                    <input class="form-input" id="eventDuration" type="number" value="60" min="15" step="15">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description (optional)</label>
+                    <textarea class="form-textarea" id="eventDesc" style="min-height:80px;" placeholder="Details…"></textarea>
+                </div>
+                <button class="form-submit-btn" id="eventSaveBtn" onclick="saveCalendarEvent()">📅 Create Event</button>
+                <p class="panel-msg" id="eventStatus" style="display:none;"></p>
+                <div class="placeholder-card" style="margin-top:1rem;">
+                    <div class="placeholder-text" style="font-size:0.78rem;">Calendar write support coming soon — connect Google Calendar in Settings first.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: Calendar View ═══════════════════════════════════════ -->
+        <div class="panel-view" id="panel-calview">
+            <div class="panel-header">
+                <span class="panel-title">🗓️ Calendar View</span>
+                <button class="panel-action-btn" onclick="loadCalendarView()">↻ Refresh</button>
+            </div>
+            <div class="panel-body" id="calviewBody">
+                <div class="placeholder-card">
+                    <div class="placeholder-icon">🗓️</div>
+                    <div class="placeholder-text">Connect Google Calendar in <strong>Settings</strong> to see your upcoming events here.</div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ══ PANEL: CRM Jobs ════════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-crm-jobs">
+            <div class="panel-header">
+                <span class="panel-title">🏗️ AccuLynx Jobs</span>
+                <button class="panel-action-btn" onclick="loadCrmJobs()">↻ Refresh</button>
+            </div>
+            <div class="panel-body">
+                <div style="display:flex;gap:0.4rem;margin-bottom:0.75rem;">
+                    <input class="form-input" id="crmJobSearch" type="text" placeholder="Search jobs…" style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;" onkeydown="if(event.key==='Enter')loadCrmJobs()">
+                    <button class="panel-action-btn" onclick="loadCrmJobs()" style="padding:0.3rem 0.6rem;">🔍</button>
+                </div>
+                <div id="crmJobsBody">
+                    <p class="panel-msg">Loading jobs…</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: CRM Contacts ════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-crm-contacts">
+            <div class="panel-header">
+                <span class="panel-title">👥 Contacts</span>
+                <button class="panel-action-btn" onclick="loadCrmContacts()">↻ Refresh</button>
+            </div>
+            <div class="panel-body">
+                <div style="display:flex;gap:0.4rem;margin-bottom:0.75rem;">
+                    <input class="form-input" id="crmContactSearch" type="text" placeholder="Search contacts…" style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;" onkeydown="if(event.key==='Enter')loadCrmContacts()">
+                    <button class="panel-action-btn" onclick="loadCrmContacts()" style="padding:0.3rem 0.6rem;">🔍</button>
+                </div>
+                <div id="crmContactsBody">
+                    <p class="panel-msg">Loading contacts…</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: CRM New Lead ════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-crm-lead">
+            <div class="panel-header">
+                <span class="panel-title">➕ New Lead</span>
+            </div>
+            <div class="panel-body">
+                <div class="form-group">
+                    <label class="form-label">First Name *</label>
+                    <input class="form-input" id="leadFirstName" type="text" placeholder="John">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Last Name *</label>
+                    <input class="form-input" id="leadLastName" type="text" placeholder="Smith">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input class="form-input" id="leadEmail" type="email" placeholder="john@example.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Phone</label>
+                    <input class="form-input" id="leadPhone" type="tel" placeholder="(555) 555-5555">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Address</label>
+                    <input class="form-input" id="leadAddress" type="text" placeholder="123 Main St">
+                </div>
+                <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:0.5rem;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">City</label>
+                        <input class="form-input" id="leadCity" type="text" placeholder="Dallas">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">State</label>
+                        <input class="form-input" id="leadState" type="text" placeholder="TX">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">ZIP</label>
+                        <input class="form-input" id="leadZip" type="text" placeholder="75001">
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top:0.5rem;">
+                    <label class="form-label">Notes</label>
+                    <textarea class="form-textarea" id="leadNotes" style="min-height:60px;" placeholder="Roof damage, hail claim…"></textarea>
+                </div>
+                <button class="form-submit-btn" id="leadSaveBtn" onclick="createCrmLead()" style="margin-top:0.5rem;">🏗️ Create Lead</button>
+                <p class="panel-msg" id="leadStatus" style="display:none;"></p>
+            </div>
+        </div>
+
+                <!-- ══ PANEL: Conversations ═══════════════════════════════════════ -->
+        <div class="panel-view" id="panel-conversations">
+            <div class="panel-header">
+                <span class="panel-title">💭 Conversations</span>
+                <button class="panel-action-btn" onclick="loadConversations()">↻ Refresh</button>
+            </div>
+            <div class="panel-body" id="conversationsBody">
+                <p class="panel-msg">Loading conversations…</p>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: Tasks ═══════════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-tasks">
+            <div class="panel-header">
+                <span class="panel-title">✅ Tasks</span>
+                <button class="panel-action-btn" onclick="loadScheduledTasks()">↻ Refresh</button>
+            </div>
+            <div class="panel-body">
+                <div style="display:flex;gap:0;margin-bottom:0.75rem;border:1px solid rgba(255,255,255,0.12);border-radius:6px;overflow:hidden;">
+                    <button id="tasksPendingBtn" onclick="setTaskFilter(true)"
+                            style="flex:1;padding:0.4rem;font-size:0.78rem;background:rgba(0,212,220,0.18);color:#00d4dc;border:none;cursor:pointer;font-family:inherit;">
+                        Pending
+                    </button>
+                    <button id="tasksAllBtn" onclick="setTaskFilter(false)"
+                            style="flex:1;padding:0.4rem;font-size:0.78rem;background:transparent;color:#94a3b8;border:none;border-left:1px solid rgba(255,255,255,0.12);cursor:pointer;font-family:inherit;">
+                        All
+                    </button>
+                </div>
+                <div id="tasksBody"><p class="panel-msg">Loading tasks...</p></div>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: Knowledge Base ══════════════════════════════════════ -->
+        <div class="panel-view" id="panel-knowledge">
+            <div class="panel-header">
+                <span class="panel-title">🧠 Knowledge Base</span>
+                <button class="panel-action-btn" onclick="showPanel('kb-add')" style="font-size:0.75rem;padding:0.25rem 0.6rem;">+ Add</button>
+            </div>
+            <div class="panel-body">
+                <!-- Search bar -->
+                <div style="display:flex;gap:0.4rem;margin-bottom:0.75rem;">
+                    <input class="form-input" id="kbSearchInput" type="text" placeholder="Search knowledge base…"
+                           style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;"
+                           onkeydown="if(event.key==='Enter')loadKnowledgeBase()">
+                    <button class="panel-action-btn" onclick="loadKnowledgeBase()" style="padding:0.3rem 0.6rem;">🔍</button>
+                </div>
+                <!-- Category filter chips (populated by JS) -->
+                <div id="kbCategoryChips" style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.75rem;"></div>
+                <!-- Entry list -->
+                <div id="kbBody"><p class="panel-msg">Loading…</p></div>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: KB Add Entry ════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-kb-add">
+            <div class="panel-header">
+                <span class="panel-title">📝 Add to Knowledge Base</span>
+            </div>
+            <div class="panel-body">
+                <!-- Tab switcher -->
+                <div style="display:flex;gap:0;margin-bottom:1rem;border:1px solid rgba(255,255,255,0.12);border-radius:6px;overflow:hidden;">
+                    <button id="kbTabText" onclick="switchKbTab('text')"
+                        style="flex:1;padding:0.4rem;font-size:0.78rem;background:rgba(34,197,94,0.18);color:#00d4dc;border:none;cursor:pointer;font-family:inherit;">
+                        ✏️ Write
+                    </button>
+                    <button id="kbTabFile" onclick="switchKbTab('file')"
+                        style="flex:1;padding:0.4rem;font-size:0.78rem;background:transparent;color:#94a3b8;border:none;cursor:pointer;font-family:inherit;">
+                        📎 Upload File
+                    </button>
+                </div>
+
+                <!-- Write tab -->
+                <div id="kbTabTextBody">
+                    <div class="form-group">
+                        <label class="form-label">Title *</label>
+                        <input class="form-input" id="kbEntryTitle" type="text" placeholder="e.g. Company Roofing SOP">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Category (optional)</label>
+                        <input class="form-input" id="kbEntryCategory" type="text" placeholder="e.g. sop, product, company">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Content *</label>
+                        <textarea class="form-textarea" id="kbEntryContent" style="min-height:140px;"
+                            placeholder="Paste or write any information Atom should know…"></textarea>
+                    </div>
+                    <button class="form-submit-btn" id="kbSaveBtn" onclick="saveKbEntry()">🧠 Save to Knowledge Base</button>
+                </div>
+
+                <!-- Upload tab -->
+                <div id="kbTabFileBody" style="display:none;">
+                    <div class="form-group">
+                        <label class="form-label">Title (optional — defaults to filename)</label>
+                        <input class="form-input" id="kbFileTitle" type="text" placeholder="Custom title…">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Category (optional)</label>
+                        <input class="form-input" id="kbFileCategory" type="text" placeholder="e.g. sop, product, company">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">File (.txt, .md, .pdf)</label>
+                        <input class="form-input" id="kbFileInput" type="file" accept=".txt,.md,.pdf"
+                            style="padding:0.35rem;font-size:0.8rem;">
+                    </div>
+                    <button class="form-submit-btn" id="kbUploadBtn" onclick="uploadKbFile()">📎 Upload File</button>
+                </div>
+
+                <p class="panel-msg" id="kbAddStatus" style="display:none;margin-top:0.6rem;"></p>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: KB Entry Detail ═════════════════════════════════════ -->
+        <div class="panel-view" id="panel-kb-detail">
+            <div class="panel-header">
+                <span class="panel-title" id="kbDetailTitle">🧠 Entry</span>
+                <button class="panel-action-btn" onclick="showPanel('knowledge')" style="font-size:0.72rem;padding:0.2rem 0.5rem;">← Back</button>
+            </div>
+            <div class="panel-body" id="kbDetailBody">
+                <p class="panel-msg">Loading…</p>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: Connections ═════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-connections">
+            <div class="panel-header">
+                <span class="panel-title">🔌 Connections</span>
+                <button class="panel-action-btn" onclick="loadConnections()">↻ Refresh</button>
+            </div>
+            <div class="panel-body" id="connectionsBody">
+                <p class="panel-msg">Checking connections…</p>
+            </div>
+        </div>
+
+        </div><!-- /panels-wrapper -->
+    </div><!-- /app -->
+
+
+    <div class="settings-overlay" id="settingsModal" onclick="if(event.target===this)closeSettings()">
+        <div class="settings-panel">
+            <div class="settings-header">
+                <span class="settings-title">⚙️ Atom Settings</span>
+                <button class="settings-close" onclick="closeSettings()">✕</button>
+            </div>
+
+            <!-- Email Section -->
+            <div class="settings-section">
+                <div class="settings-section-title">📧 Email Account</div>
+
+                <div class="settings-row">
+                    <span class="settings-label">Status</span>
+                    <span class="settings-value" id="gmailStatusBadge">⏳ Loading…</span>
+                </div>
+                <div class="settings-row">
+                    <span class="settings-label">Send from</span>
+                    <span class="settings-value" id="gmailEmailDisplay" style="color:#00d4dc;">—</span>
+                </div>
+
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                    <button class="settings-btn" id="gmailConnectBtn" onclick="connectGmail()" style="flex:1;min-width:160px;">
+                        🔗 Connect Gmail
+                    </button>
+                    <button class="settings-btn" id="gmailDisconnectBtn" onclick="disconnectGmail()"
+                            style="flex:1;min-width:160px;background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3);display:none;">
+                        🔌 Disconnect Gmail
+                    </button>
+                </div>
+
+                <div class="settings-note" id="gmailSetupNote" style="display:none;">
+                    <strong>One-time setup required:</strong><br>
+                    Before connecting, add these to your Railway Backend service's environment variables:<br>
+                    <code>GOOGLE_CLIENT_ID</code> — from <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a><br>
+                    <code>GOOGLE_CLIENT_SECRET</code> — same place<br>
+                    <code>GOOGLE_REDIRECT_URI</code> = <code>https://atom-backend-production-8a1e.up.railway.app/email/oauth/callback</code><br>
+                    <code>EMAIL_PROVIDER_NAME</code> = <code>gmail</code><br><br>
+                    Once set, come back here and click Connect Gmail.
+                </div>
+            </div>
+
+            <!-- Outlook Section -->
+            <div class="settings-section">
+                <div class="settings-section-title">📨 Outlook / Microsoft 365</div>
+
+                <div class="settings-row">
+                    <span class="settings-label">Status</span>
+                    <span class="settings-value" id="outlookStatusBadge">⏳ Loading…</span>
+                </div>
+                <div class="settings-row">
+                    <span class="settings-label">Account</span>
+                    <span class="settings-value" id="outlookEmailDisplay" style="color:#00d4dc;">—</span>
+                </div>
+
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                    <button class="settings-btn" id="outlookConnectBtn" onclick="connectOutlook()" style="flex:1;min-width:160px;">
+                        🔗 Connect Outlook
+                    </button>
+                    <button class="settings-btn" id="outlookDisconnectBtn" onclick="disconnectOutlook()"
+                            style="flex:1;min-width:160px;background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3);display:none;">
+                        🔌 Disconnect Outlook
+                    </button>
+                </div>
+
+                <div class="settings-note" id="outlookSetupNote" style="display:none;">
+                    <strong>One-time setup required:</strong><br>
+                    Before connecting, add these to your Railway Backend service's environment variables:<br>
+                    <code>MICROSOFT_CLIENT_ID</code> — from <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps" target="_blank">Azure App Registrations</a><br>
+                    <code>MICROSOFT_CLIENT_SECRET</code> — same place (Certificates &amp; Secrets)<br>
+                    <code>MICROSOFT_REDIRECT_URI</code> = <code>https://atom-backend-production-8a1e.up.railway.app/email/oauth/callback</code><br>
+                    <code>MICROSOFT_TENANT_ID</code> = <code>common</code> (personal + work accounts)<br><br>
+                    Once set, come back here and click Connect Outlook.
+                </div>
+            </div>
+
+            <!-- Calendar Section -->
+            <div class="settings-section">
+                <div class="settings-section-title">📅 Calendar</div>
+                <div class="settings-row">
+                    <span class="settings-label">Provider</span>
+                    <span class="settings-value">Google Calendar</span>
+                </div>
+                <div class="settings-row">
+                    <span class="settings-label">Status</span>
+                    <span class="settings-value" id="calendarStatusBadge" style="color:#f59e0b;">⏳ Loading…</span>
+                </div>
+                <div class="settings-note">
+                    Calendar uses the same Google account as Gmail — no separate login needed.
+                    If you just connected Gmail for the first time, click <strong>Reconnect</strong>
+                    above once to grant calendar access with the updated scopes.
+                </div>
+            </div>
+
+            <!-- Account Info -->
+            <div class="settings-section">
+                <div class="settings-section-title">👤 Account</div>
+                <div class="settings-row">
+                    <span class="settings-label">Signed in as</span>
+                    <span class="settings-value" id="accountEmail" style="color:#00d4dc;">—</span>
+                </div>
+                <div class="settings-row">
+                    <span class="settings-label">AI Model</span>
+                    <span class="settings-value" style="color:#00d4dc;">Claude (Anthropic)</span>
+                </div>
+                <div class="settings-row">
+                    <span class="settings-label">Voice input</span>
+                    <span class="settings-value" style="color:#00d4dc;">Whisper (OpenAI)</span>
+                </div>
+            </div>
+
+        </div><!-- /settings-panel -->
+    </div><!-- /settings-overlay -->
+
+    <!-- JavaScript modules (load order matters) -->
+    <script src="/js/api.js"></script>
+    <script src="/js/chat.js"></script>
+    <script src="/js/voice.js"></script>
+    <script src="/js/panels.js"></script>
+    <script src="/js/settings.js"></script>
+
+    <!-- Bootstrap -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (AtomAPI.isLoggedIn()) { showApp(); }
+            // else: auth screen visible by default
+        });
+
+        // ─── Auth screen ───────────────────────────────────────────────────
+        function authSwitchTab(tab) {
+            document.getElementById('authFormLogin').style.display    = tab === 'login'    ? '' : 'none';
+            document.getElementById('authFormRegister').style.display = tab === 'register' ? '' : 'none';
+            document.getElementById('authTabLogin').classList.toggle('active', tab === 'login');
+            document.getElementById('authTabRegister').classList.toggle('active', tab === 'register');
+            document.getElementById('authError').textContent = '';
+        }
+        async function handleAuthLogin() {
+            const email = document.getElementById('authLoginEmail').value.trim();
+            const password = document.getElementById('authLoginPassword').value;
+            const btn = document.getElementById('authLoginBtn');
+            const errEl = document.getElementById('authError');
+            errEl.textContent = '';
+            if (!email || !password) { errEl.textContent = 'Please enter email and password.'; return; }
+            btn.disabled = true; btn.textContent = 'Signing in...';
+            try { await AtomAPI.login(email, password); showApp(); }
+            catch (e) { errEl.textContent = e.message || 'Login failed.'; }
+            finally { btn.disabled = false; btn.textContent = 'Sign In'; }
+        }
+        async function handleAuthRegister() {
+            const name = document.getElementById('authRegName').value.trim();
+            const email = document.getElementById('authRegEmail').value.trim();
+            const password = document.getElementById('authRegPassword').value;
+            const btn = document.getElementById('authRegisterBtn');
+            const errEl = document.getElementById('authError');
+            errEl.textContent = '';
+            if (!email || !password) { errEl.textContent = 'Email and password are required.'; return; }
+            if (password.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; return; }
+            btn.disabled = true; btn.textContent = 'Creating account...';
+            try { await AtomAPI.register(email, password, name || undefined); showApp(); }
+            catch (e) { errEl.textContent = e.message || 'Registration failed.'; }
+            finally { btn.disabled = false; btn.textContent = 'Create Account'; }
+        }
+        document.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter') return;
+            const s = document.getElementById('authScreen');
+            if (!s || s.classList.contains('hidden')) return;
+            if (document.getElementById('authFormLogin').style.display !== 'none') handleAuthLogin();
+            else handleAuthRegister();
+        });
+        function showApp() {
+            document.getElementById('authScreen').classList.add('hidden');
+            bootApp();
+        }
+        async function bootApp() {
+            await AtomAPI.loadConfig();
+            initializeWaveform();
+            startWaveformAnimation();
+            setupTextInput();
+            checkBackendStatus();
+            updateConversationDisplay();
+            // Click outside response area collapses it (but not when typing in main input)
+            document.addEventListener('click', function(e) {
+                const responseArea = document.getElementById('responseArea');
+                const mainInputEl  = document.getElementById('mainTextInput');
+                const clickedInResp  = responseArea && responseArea.contains(e.target);
+                const clickedInMain  = mainInputEl  && mainInputEl.contains(e.target);
+                if (!clickedInResp && !clickedInMain && responseArea && responseArea.classList.contains('pinned')) {
+                    unpinResponseArea();
+                }
+            });
+        }
+    </script>
+
+</body>
+</html>
+
