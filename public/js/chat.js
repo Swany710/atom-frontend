@@ -273,7 +273,9 @@ async function sendTextFromMainInput() {
     try {
         await sendTextMessage(message);
     } finally {
-        if (sendBtn) sendBtn.disabled = false;
+        // Input was cleared above, so keep button disabled until user types again
+        const currentInput = document.getElementById('mainTextInput');
+        if (sendBtn) sendBtn.disabled = !currentInput || currentInput.value.trim() === '';
     }
 }
 

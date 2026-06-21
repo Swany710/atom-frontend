@@ -346,19 +346,20 @@ async function loadCrmContacts() {
 // ── CRM: Create Lead ───────────────────────────────────────────────────────
 
 async function createCrmLead() {
-    const status = document.getElementById('leadStatus');
-    const btn    = document.getElementById('leadSaveBtn');
-    const name   = document.getElementById('leadName').value.trim();
-    const email  = document.getElementById('leadEmail').value.trim();
-    const phone  = document.getElementById('leadPhone').value.trim();
-    const addr   = document.getElementById('leadAddress').value.trim();
-    const city   = document.getElementById('leadCity')?.value?.trim() || '';
-    const stateVal = document.getElementById('leadState')?.value?.trim() || '';
-    const zip    = document.getElementById('leadZip')?.value?.trim() || '';
-    const notes  = document.getElementById('leadNotes').value.trim();
-    const { firstName, lastName } = splitFullName(name);
+    const status    = document.getElementById('leadStatus');
+    const btn       = document.getElementById('leadSaveBtn');
+    const firstName = document.getElementById('leadFirstName')?.value?.trim() || '';
+    const lastName  = document.getElementById('leadLastName')?.value?.trim()  || '';
+    const name      = [firstName, lastName].filter(Boolean).join(' ');
+    const email     = document.getElementById('leadEmail').value.trim();
+    const phone     = document.getElementById('leadPhone').value.trim();
+    const addr      = document.getElementById('leadAddress').value.trim();
+    const city      = document.getElementById('leadCity')?.value?.trim() || '';
+    const stateVal  = document.getElementById('leadState')?.value?.trim() || '';
+    const zip       = document.getElementById('leadZip')?.value?.trim() || '';
+    const notes     = document.getElementById('leadNotes').value.trim();
 
-    if (!name) {
+    if (!firstName) {
         status.textContent   = 'Customer name is required.';
         status.className     = 'panel-msg err';
         status.style.display = 'block';
@@ -386,7 +387,7 @@ async function createCrmLead() {
         status.textContent   = `✅ Lead created: ${esc(lead.jobName || lead.name || data.message || name)}`;
         status.className     = 'panel-msg ok';
         status.style.display = 'block';
-        ['leadName', 'leadEmail', 'leadPhone', 'leadAddress', 'leadCity', 'leadState', 'leadZip', 'leadNotes'].forEach(id => {
+        ['leadFirstName', 'leadLastName', 'leadEmail', 'leadPhone', 'leadAddress', 'leadCity', 'leadState', 'leadZip', 'leadNotes'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';
         });
