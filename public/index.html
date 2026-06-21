@@ -262,7 +262,7 @@
         <!-- Header -->
         <div class="header">
             <div class="header-left">
-                <div class="back-button menu-toggle" onclick="toggleMenu()" title="Menu" role="button" aria-label="Open navigation menu">☰</div>
+                <div class="back-button menu-toggle" onclick="toggleMenu()" title="Menu" role="button" aria-label="Open navigation menu">◀◀◀</div>
             </div>
             <div class="header-center">
                 <div class="title">Atom</div>
@@ -850,6 +850,7 @@
     <!-- Bootstrap -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            setupTextInput(); // wire input listeners regardless of login state
             if (AtomAPI.isLoggedIn()) { showApp(); }
             // else: auth screen visible by default
         });
