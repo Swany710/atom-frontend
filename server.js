@@ -16,6 +16,13 @@ app.use(helmet({
     directives: {
       defaultSrc:  ["'self'"],
       scriptSrc:   ["'self'", "'unsafe-inline'"],   // inline scripts used throughout public/js
+      // Helmet's default CSP sets `script-src-attr 'none'`, which blocks ALL
+      // inline event-handler attributes (onclick, onkeydown, …) even when
+      // script-src allows 'unsafe-inline'. The entire UI is wired with inline
+      // handlers, so without this every button, the nav menu, login, and chat
+      // silently do nothing. Re-enable inline handlers explicitly.
+      // NOTE: longer-term, migrate handlers to addEventListener and drop this.
+      scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc:    ["'self'", "'unsafe-inline'"],   // inline styles used in index.html
       mediaSrc:    ["'self'", 'blob:'],             // blob: URLs for recorded audio playback
       connectSrc:  ["'self'", "wss://api.openai.com", "https://api.openai.com"],  // API proxy + OpenAI Realtime WebSocket
