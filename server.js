@@ -17,7 +17,7 @@ app.use(helmet({
       defaultSrc:  ["'self'"],
       scriptSrc:   ["'self'", "'unsafe-inline'"],   // inline scripts used throughout public/js
       // Helmet's default CSP sets `script-src-attr 'none'`, which blocks ALL
-      // inline event-handler attributes (onclick, onkeydown, …) even when
+      // inline event-handler attributes (onclick, onkeydown, etc.) even when
       // script-src allows 'unsafe-inline'. The entire UI is wired with inline
       // handlers, so without this every button, the nav menu, login, and chat
       // silently do nothing. Re-enable inline handlers explicitly.
