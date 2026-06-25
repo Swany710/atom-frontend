@@ -1,0 +1,5 @@
+# Normalize line endings: store LF in the repo, check out native per OS.
+# Prevents the CRLF/LF churn that made main and master look diverged.
+* text=auto
+*.bat text eol=crlf
+*.sh  text eol=lf
