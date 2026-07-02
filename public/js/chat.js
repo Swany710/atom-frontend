@@ -157,18 +157,10 @@ function setInputMode(mode) {
     const vttContainer  = document.getElementById('vttButtonContainer');
     const statusText    = document.getElementById('statusText');
 
-    // Update mode button styles
-    document.querySelectorAll('.atom-mode-btn').forEach(btn => {
-        btn.style.background = 'transparent';
-        btn.style.color      = '#94a3b8';
-        btn.style.fontWeight = 'normal';
-    });
+    // Update mode button styles (icon buttons — .active class carries the styling)
+    document.querySelectorAll('.atom-mode-btn').forEach(btn => btn.classList.remove('active'));
     const activeBtn = document.getElementById('mode-' + mode);
-    if (activeBtn) {
-        activeBtn.style.background = 'rgba(0,212,220,0.18)';
-        activeBtn.style.color      = '#00d4dc';
-        activeBtn.style.fontWeight = '600';
-    }
+    if (activeBtn) activeBtn.classList.add('active');
 
     if (mode === 'live') {
         if (waveContainer) waveContainer.style.display = '';

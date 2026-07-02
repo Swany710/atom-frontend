@@ -11,35 +11,95 @@
     <link rel="stylesheet" href="/css/settings.css">
 
     <style>
-        /* ── Input mode selector ─────────────────────────────────────────── */
-        .atom-mode-selector {
+        /* ── Input mode icons (live / text / voice-to-text) ─────────────── */
+        .mode-icons {
             display: flex;
-            gap: 0;
-            border-radius: 8px;
-            overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.12);
-            max-width: 360px;
-            margin: 0 auto 0.85rem;
+            gap: 0.4rem;
+            align-items: center;
+            flex-shrink: 0;
         }
         .atom-mode-btn {
-            flex: 1;
-            padding: 0.48rem 0;
-            font-size: 0.76rem;
-            background: transparent;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            padding: 0;
+            font-size: 1.05rem;
+            background: rgba(255,255,255,0.04);
             color: #94a3b8;
-            border: none;
+            border: 1px solid rgba(255,255,255,0.12);
             cursor: pointer;
             font-family: inherit;
-            transition: background 0.18s, color 0.18s;
-            white-space: nowrap;
-        }
-        .atom-mode-btn + .atom-mode-btn {
-            border-left: 1px solid rgba(255,255,255,0.10);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.18s, color 0.18s, border-color 0.18s;
         }
         .atom-mode-btn:hover {
-            background: rgba(255,255,255,0.06);
+            background: rgba(255,255,255,0.09);
             color: #cbd5e1;
         }
+        .atom-mode-btn.active {
+            background: rgba(0,212,220,0.16);
+            border-color: rgba(0,212,220,0.45);
+            color: #00d4dc;
+        }
+
+        /* ── Tooltips (data-tip) ─────────────────────────────────────────── */
+        [data-tip] { position: relative; }
+        [data-tip]::after {
+            content: attr(data-tip);
+            position: absolute;
+            bottom: calc(100% + 9px);
+            left: 50%;
+            transform: translateX(-50%) translateY(4px);
+            background: rgba(10,14,22,0.97);
+            color: #cbd5e1;
+            border: 1px solid rgba(0,212,220,0.28);
+            border-radius: 6px;
+            padding: 0.35rem 0.6rem;
+            font-size: 0.72rem;
+            font-weight: 400;
+            line-height: 1.35;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s ease, transform 0.15s ease;
+            z-index: 600;
+        }
+        [data-tip]:hover::after {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        /* Variant: tooltip below the element (for buttons at the top edge) */
+        [data-tip].tip-bottom::after {
+            bottom: auto;
+            top: calc(100% + 9px);
+            transform: translateX(-50%) translateY(-4px);
+        }
+        [data-tip].tip-bottom:hover::after {
+            transform: translateX(-50%) translateY(0);
+        }
+        /* Variant: tooltip anchored to the right edge (avoids viewport clipping) */
+        [data-tip].tip-left::after {
+            left: auto;
+            right: 0;
+            transform: translateX(0) translateY(4px);
+        }
+        [data-tip].tip-left:hover::after {
+            transform: translateX(0) translateY(0);
+        }
+
+        /* ── Right-edge hover zone: opens the conversation panel ────────── */
+        .chat-hover-zone {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 20px;
+            z-index: 5;
+        }
+        /* Once the panel is open, the zone steps aside so it never blocks clicks */
+        .response-area.pinned ~ .chat-hover-zone { display: none; }
         /* ── Voice-to-Text button ────────────────────────────────────────── */
         #vttButtonContainer {
             text-align: center;
@@ -278,30 +338,12 @@
         <div class="main-content">
             <div class="voice-container">
 
-                <!-- ── Input mode selector ──────────────────────────────── -->
-                <div class="atom-mode-selector">
-                    <button class="atom-mode-btn"
-                            id="mode-live"
-                            onclick="setInputMode('live')"
-                            style="background:rgba(0,212,220,0.18);color:#00d4dc;font-weight:600;">
-                        🎤 Live Chat
-                    </button>
-                    <button class="atom-mode-btn"
-                            id="mode-text"
-                            onclick="setInputMode('text')">
-                        📝 Text
-                    </button>
-                    <button class="atom-mode-btn"
-                            id="mode-vtt"
-                            onclick="setInputMode('vtt')">
-                        🎙️ Voice-to-Text
-                    </button>
-                </div>
                 <!-- Audio response toggle ─ always visible in all modes -->
                 <div style="text-align:right;padding-right:6px;margin-bottom:0.25rem;">
                     <button id="muteBtn"
                             onclick="toggleVoiceResponse()"
-                            title="Audio response is ON ─ click to mute"
+                            class="tip-left"
+                            data-tip="Audio response is ON — click to mute"
                             style="font-size:0.72rem;padding:0.18rem 0.7rem;border-radius:20px;
                                    background:transparent;border:1px solid rgba(0,212,220,0.35);
                                    color:#00d4dc;cursor:pointer;font-family:inherit;
@@ -311,17 +353,17 @@
                 </div>
                 <!-- Waveform — click to record (hidden in text / vtt modes) -->
                 <div class="waveform-container">
-                    <canvas id="waveCanvas" class="wave-canvas" onclick="toggleRecording()" title="Click to speak"></canvas>
+                    <canvas id="waveCanvas" class="wave-canvas" onclick="toggleRecording()" title="Click to start or stop live voice"></canvas>
                 </div>
 
                 <!-- Minimal controls (hidden in text / vtt modes) -->
                 <div class="wave-controls">
-                    <div class="voice-button" id="voiceButton" onclick="toggleRecording()" title="Record">🎤</div>
+                    <div class="voice-button" id="voiceButton" onclick="toggleRecording()" data-tip="Start or stop live voice recording">🎤</div>
                 </div>
 
                 <!-- Voice-to-Text dictation button (shown only in vtt mode) -->
                 <div id="vttButtonContainer" style="display:none;">
-                    <button id="vttButton" onclick="toggleVoiceToText()">🎙️ Dictate</button>
+                    <button id="vttButton" onclick="toggleVoiceToText()" data-tip="Dictate — your speech becomes text you can review">🎙️ Dictate</button>
                     <div id="vttHint">Speak your message — it appears below. Review, then click Send.</div>
                 </div>
 
@@ -330,6 +372,20 @@
 
                 <!-- Always-visible text input -->
                 <div class="main-text-bar">
+                    <div class="mode-icons">
+                        <button class="atom-mode-btn active" id="mode-live" type="button"
+                                onclick="setInputMode('live')"
+                                data-tip="Live voice chat — talk with Atom in real time"
+                                aria-label="Live voice chat">🎤</button>
+                        <button class="atom-mode-btn" id="mode-text" type="button"
+                                onclick="setInputMode('text')"
+                                data-tip="Text mode — type your messages"
+                                aria-label="Text mode">📝</button>
+                        <button class="atom-mode-btn" id="mode-vtt" type="button"
+                                onclick="setInputMode('vtt')"
+                                data-tip="Voice-to-text — dictate, review, then send"
+                                aria-label="Voice to text mode">🎙️</button>
+                    </div>
                     <textarea
                         class="main-text-input"
                         id="mainTextInput"
@@ -339,7 +395,7 @@
                     ></textarea>
                     <button type="button" class="face-dictate-btn" id="faceDictateBtn"
                             onclick="toggleVoiceToText()" aria-pressed="false"
-                            title="Tap to dictate — speak and your words become text"
+                            data-tip="Tap to dictate — speak and your words become text"
                             aria-label="Voice to text dictation">
                         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
                             <circle class="face-outline" cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/>
@@ -348,7 +404,8 @@
                             <path class="face-mouth" d="M8.5 14 Q12 16.8 15.5 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
                         </svg>
                     </button>
-                    <button class="main-send-button" id="mainSendButton" onclick="sendTextFromMainInput()" disabled>Send</button>
+                    <button class="main-send-button tip-left" id="mainSendButton" onclick="sendTextFromMainInput()"
+                            data-tip="Send your message to Atom" disabled>Send</button>
                 </div>
             </div>
 
@@ -357,8 +414,8 @@
                 <div class="response-header">
                     <div class="response-title">Conversation</div>
                     <div class="conversation-controls">
-                        <button class="control-button" onclick="clearConversation()" title="Clear">Clear</button>
-                        <button class="control-button" onclick="closePanel()" title="Close">✕</button>
+                        <button class="control-button tip-bottom" onclick="clearConversation()" data-tip="Clear this conversation">Clear</button>
+                        <button class="control-button tip-bottom tip-left" onclick="closePanel()" data-tip="Close the chat panel">✕</button>
                     </div>
                 </div>
                 
@@ -386,6 +443,8 @@
                     </div>
                 </div>
             </div>
+            <!-- Hover strip: mousing over the right edge opens the chat panel -->
+            <div class="chat-hover-zone" id="chatHoverZone" aria-hidden="true"></div>
         </div>
         </div><!-- /panel-chat -->
 
@@ -907,16 +966,19 @@
             setupTextInput();
             checkBackendStatus();
             updateConversationDisplay();
-            // Click outside response area collapses it (but not when typing in main input)
+            // Click outside response area collapses it — but interacting with the
+            // composer (text box, Send, dictate, mode icons) must NOT close the chat.
             document.addEventListener('click', function(e) {
                 const responseArea = document.getElementById('responseArea');
-                const mainInputEl  = document.getElementById('mainTextInput');
-                const clickedInResp  = responseArea && responseArea.contains(e.target);
-                const clickedInMain  = mainInputEl  && mainInputEl.contains(e.target);
-                if (!clickedInResp && !clickedInMain && responseArea && responseArea.classList.contains('pinned')) {
-                    unpinResponseArea();
-                }
+                if (!responseArea || !responseArea.classList.contains('pinned')) return;
+                if (e.target.closest && e.target.closest(
+                    '.response-area, .main-text-bar, .mode-icons, #vttButtonContainer, #muteBtn, .chat-hover-zone'
+                )) return;
+                unpinResponseArea();
             });
+            // Hovering the right edge of the dashboard opens the chat panel
+            const hoverZone = document.getElementById('chatHoverZone');
+            if (hoverZone) hoverZone.addEventListener('mouseenter', pinResponseArea);
         }
     </script>
 

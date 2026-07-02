@@ -574,13 +574,13 @@ function updateVttUI(active) {
     if (btn) {
         btn.classList.toggle('recording', active);
         btn.textContent = active ? '⏹ Stop Dictation' : '🎙️ Dictate';
-        btn.title       = active ? 'Click to stop dictating' : 'Click to dictate into text box';
+        btn.dataset.tip = active ? 'Click to stop dictating' : 'Dictate — your speech becomes text you can review';
     }
     // Keep the always-visible "talking face" button in the chat bar in sync
     const face = document.getElementById('faceDictateBtn');
     if (face) {
         face.classList.toggle('talking', active);
-        face.title = active
+        face.dataset.tip = active
             ? 'Listening… tap to stop'
             : 'Tap to dictate — speak and your words become text';
         face.setAttribute('aria-pressed', active ? 'true' : 'false');
@@ -607,7 +607,7 @@ function updateRecordingUI(recording) {
     const voiceButton = document.getElementById('voiceButton');
     if (!voiceButton) return;
     voiceButton.classList.toggle('recording', recording);
-    voiceButton.title = recording ? 'Click to stop' : 'Click to speak';
+    voiceButton.dataset.tip = recording ? 'Click to stop recording' : 'Start or stop live voice recording';
 }
 
 function emergencyResetRecording() {
@@ -722,7 +722,7 @@ function toggleVoiceResponse() {
     const btn = document.getElementById('muteBtn');
     if (btn) {
         btn.innerHTML         = voiceResponseOn ? '&#x1F50A; Audio' : '&#x1F507; Muted';
-        btn.title             = voiceResponseOn ? 'Audio response ON \u2014 click to mute' : 'Audio response OFF \u2014 click to unmute';
+        btn.dataset.tip       = voiceResponseOn ? 'Audio response ON \u2014 click to mute' : 'Audio response OFF \u2014 click to unmute';
         btn.style.color       = voiceResponseOn ? '#00d4dc' : '#64748b';
         btn.style.borderColor = voiceResponseOn ? 'rgba(0,212,220,0.35)' : 'rgba(255,255,255,0.15)';
     }
