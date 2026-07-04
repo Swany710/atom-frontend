@@ -560,3 +560,18 @@
     0%,90%,100% { opacity: 1; }
     95%         { opacity: 0.15; }
 }
+
+/* ── Knowledge-base entry cards ─────────────────────────────────────────────
+   Replaces the old inline onmouseover/onmouseout style toggles, which were
+   removed as part of dropping 'unsafe-inline' from the CSP. */
+.kb-entry-card {
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 0.65rem 0.85rem;
+    margin-bottom: 0.45rem;
+    background: rgba(255,255,255,0.03);
+    cursor: pointer;
+}
+.kb-entry-card:hover {
+    background: rgba(255,255,255,0.06);
+}

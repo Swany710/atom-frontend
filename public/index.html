@@ -205,15 +205,15 @@
             <div class="auth-logo">Atom</div>
 
             <div class="auth-tabs">
-                <button class="auth-tab active" id="authTabLogin" onclick="authSwitchTab('login')">Sign In</button>
-                <button class="auth-tab" id="authTabRegister" onclick="authSwitchTab('register')">Register</button>
+                <button class="auth-tab active" id="authTabLogin" data-action="authSwitchTab('login')">Sign In</button>
+                <button class="auth-tab" id="authTabRegister" data-action="authSwitchTab('register')">Register</button>
             </div>
 
             <!-- Login form -->
             <div id="authFormLogin">
                 <input type="email" id="authLoginEmail" class="auth-input" placeholder="Email address" autocomplete="email">
                 <input type="password" id="authLoginPassword" class="auth-input" placeholder="Password" autocomplete="current-password">
-                <button class="auth-btn" id="authLoginBtn" onclick="handleAuthLogin()">Sign In</button>
+                <button class="auth-btn" id="authLoginBtn" data-action="handleAuthLogin()">Sign In</button>
             </div>
 
             <!-- Register form -->
@@ -221,7 +221,7 @@
                 <input type="text" id="authRegName" class="auth-input" placeholder="Display name (optional)" autocomplete="name">
                 <input type="email" id="authRegEmail" class="auth-input" placeholder="Email address" autocomplete="email">
                 <input type="password" id="authRegPassword" class="auth-input" placeholder="Password (8+ characters)" autocomplete="new-password">
-                <button class="auth-btn" id="authRegisterBtn" onclick="handleAuthRegister()">Create Account</button>
+                <button class="auth-btn" id="authRegisterBtn" data-action="handleAuthRegister()">Create Account</button>
             </div>
 
             <div class="auth-error" id="authError"></div>
@@ -231,82 +231,82 @@
     <div class="app">
 
         <!-- ══ SIDEBAR OVERLAY ════════════════════════════════════════════ -->
-        <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+        <div class="sidebar-overlay" id="sidebarOverlay" data-action="closeSidebar()"></div>
 
         <!-- ══ SIDEBAR DRAWER ════════════════════════════════════════════ -->
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <span class="sidebar-logo">⚡ Atom</span>
-                <button class="sidebar-close" onclick="closeSidebar()">✕</button>
+                <button class="sidebar-close" data-action="closeSidebar()">✕</button>
             </div>
 
             <nav class="sidebar-nav">
                 <!-- Dashboard -->
-                <div class="nav-item active" id="nav-chat" onclick="showPanel('chat')">
+                <div class="nav-item active" id="nav-chat" data-action="showPanel('chat')">
                     <span class="nav-icon">💬</span> Dashboard
                 </div>
 
                 <!-- Email -->
                 <div class="nav-group-title">Email</div>
-                <div class="nav-item" id="nav-inbox" onclick="showPanel('inbox')">
+                <div class="nav-item" id="nav-inbox" data-action="showPanel('inbox')">
                     <span class="nav-icon">📥</span> Inbox
                 </div>
-                <div class="nav-item" id="nav-compose" onclick="showPanel('compose')">
+                <div class="nav-item" id="nav-compose" data-action="showPanel('compose')">
                     <span class="nav-icon">✏️</span> Compose
                 </div>
-                <div class="nav-item" id="nav-drafts" onclick="showPanel('drafts')">
+                <div class="nav-item" id="nav-drafts" data-action="showPanel('drafts')">
                     <span class="nav-icon">📝</span> Drafts
                 </div>
-                <div class="nav-item" id="nav-sent" onclick="showPanel('sent')">
+                <div class="nav-item" id="nav-sent" data-action="showPanel('sent')">
                     <span class="nav-icon">📤</span> Sent
                 </div>
 
                 <!-- Calendar -->
                 <div class="nav-group-title">Calendar</div>
-                <div class="nav-item" id="nav-today" onclick="showPanel('today')">
+                <div class="nav-item" id="nav-today" data-action="showPanel('today')">
                     <span class="nav-icon">📅</span> Today
                 </div>
-                <div class="nav-item" id="nav-newevent" onclick="showPanel('newevent')">
+                <div class="nav-item" id="nav-newevent" data-action="showPanel('newevent')">
                     <span class="nav-icon">➕</span> New Event
                 </div>
-                <div class="nav-item" id="nav-calview" onclick="showPanel('calview')">
+                <div class="nav-item" id="nav-calview" data-action="showPanel('calview')">
                     <span class="nav-icon">🗓️</span> Calendar View
                 </div>
 
 
                 <!-- CRM -->
                 <div class="nav-group-title">AccuLynx CRM</div>
-                <div class="nav-item" id="nav-crm-jobs" onclick="showPanel('crm-jobs')">
+                <div class="nav-item" id="nav-crm-jobs" data-action="showPanel('crm-jobs')">
                     <span class="nav-icon">🏗️</span> Jobs
                 </div>
-                <div class="nav-item" id="nav-crm-contacts" onclick="showPanel('crm-contacts')">
+                <div class="nav-item" id="nav-crm-contacts" data-action="showPanel('crm-contacts')">
                     <span class="nav-icon">👥</span> Contacts
                 </div>
-                <div class="nav-item" id="nav-crm-lead" onclick="showPanel('crm-lead')">
+                <div class="nav-item" id="nav-crm-lead" data-action="showPanel('crm-lead')">
                     <span class="nav-icon">➕</span> New Lead
                 </div>
 
                 <!-- Memory & Data -->
                 <div class="nav-group-title">Memory &amp; Data</div>
-                <div class="nav-item" id="nav-conversations" onclick="showPanel('conversations')">
+                <div class="nav-item" id="nav-conversations" data-action="showPanel('conversations')">
                     <span class="nav-icon">💭</span> Conversations
                 </div>
-                <div class="nav-item" id="nav-tasks" onclick="showPanel('tasks')">
+                <div class="nav-item" id="nav-tasks" data-action="showPanel('tasks')">
                     <span class="nav-icon">✅</span> Tasks
                 </div>
-                <div class="nav-item" id="nav-knowledge" onclick="showPanel('knowledge')">
+                <div class="nav-item" id="nav-knowledge" data-action="showPanel('knowledge')">
                     <span class="nav-icon">🧠</span> Knowledge Base
                 </div>
 
                 <!-- Account -->
                 <div class="nav-group-title">Account</div>
-                <div class="nav-item" id="nav-connections" onclick="showPanel('connections')">
+                <div class="nav-item" id="nav-connections" data-action="showPanel('connections')">
                     <span class="nav-icon">🔌</span> Connections
                 </div>
-                <div class="nav-item" id="nav-settings" onclick="openSettings();closeSidebar()">
+                <div class="nav-item" id="nav-settings" data-action="openSettings;closeSidebar">
                     <span class="nav-icon">⚙️</span> Settings
                 </div>
-                <div class="nav-item" onclick="AtomAPI.logout()" style="color:#f87171;border-top:1px solid rgba(255,255,255,0.08);margin-top:0.5rem;padding-top:0.5rem;">
+                <div class="nav-item" data-action="AtomAPI.logout" style="color:#f87171;border-top:1px solid rgba(255,255,255,0.08);margin-top:0.5rem;padding-top:0.5rem;">
                     <span class="nav-icon">🚪</span> Sign Out
                 </div>
             </nav>
@@ -322,7 +322,7 @@
         <!-- Header -->
         <div class="header">
             <div class="header-left">
-                <div class="back-button menu-toggle" onclick="toggleMenu()" title="Menu" role="button" aria-label="Open navigation menu">◀◀◀</div>
+                <div class="back-button menu-toggle" data-action="toggleMenu()" title="Menu" role="button" aria-label="Open navigation menu">◀◀◀</div>
             </div>
             <div class="header-center">
                 <div class="title">Atom</div>
@@ -341,7 +341,7 @@
                 <!-- Audio response toggle ─ always visible in all modes -->
                 <div style="text-align:right;padding-right:6px;margin-bottom:0.25rem;">
                     <button id="muteBtn"
-                            onclick="toggleVoiceResponse()"
+                            data-action="toggleVoiceResponse()"
                             class="tip-left"
                             data-tip="Audio response is ON — click to mute"
                             style="font-size:0.72rem;padding:0.18rem 0.7rem;border-radius:20px;
@@ -353,17 +353,17 @@
                 </div>
                 <!-- Waveform — click to record (hidden in text / vtt modes) -->
                 <div class="waveform-container">
-                    <canvas id="waveCanvas" class="wave-canvas" onclick="toggleRecording()" title="Click to start or stop live voice"></canvas>
+                    <canvas id="waveCanvas" class="wave-canvas" data-action="toggleRecording()" title="Click to start or stop live voice"></canvas>
                 </div>
 
                 <!-- Minimal controls (hidden in text / vtt modes) -->
                 <div class="wave-controls">
-                    <div class="voice-button" id="voiceButton" onclick="toggleRecording()" data-tip="Start or stop live voice recording">🎤</div>
+                    <div class="voice-button" id="voiceButton" data-action="toggleRecording()" data-tip="Start or stop live voice recording">🎤</div>
                 </div>
 
                 <!-- Voice-to-Text dictation button (shown only in vtt mode) -->
                 <div id="vttButtonContainer" style="display:none;">
-                    <button id="vttButton" onclick="toggleVoiceToText()" data-tip="Dictate — your speech becomes text you can review">🎙️ Dictate</button>
+                    <button id="vttButton" data-action="toggleVoiceToText()" data-tip="Dictate — your speech becomes text you can review">🎙️ Dictate</button>
                     <div id="vttHint">Speak your message — it appears below. Review, then click Send.</div>
                 </div>
 
@@ -374,15 +374,15 @@
                 <div class="main-text-bar">
                     <div class="mode-icons">
                         <button class="atom-mode-btn active" id="mode-live" type="button"
-                                onclick="setInputMode('live')"
+                                data-action="setInputMode('live')"
                                 data-tip="Live voice chat — talk with Atom in real time"
                                 aria-label="Live voice chat">🎤</button>
                         <button class="atom-mode-btn" id="mode-text" type="button"
-                                onclick="setInputMode('text')"
+                                data-action="setInputMode('text')"
                                 data-tip="Text mode — type your messages"
                                 aria-label="Text mode">📝</button>
                         <button class="atom-mode-btn" id="mode-vtt" type="button"
-                                onclick="setInputMode('vtt')"
+                                data-action="setInputMode('vtt')"
                                 data-tip="Voice-to-text — dictate, review, then send"
                                 aria-label="Voice to text mode">🎙️</button>
                     </div>
@@ -391,10 +391,10 @@
                         id="mainTextInput"
                         placeholder="Type a message to Atom..."
                         rows="1"
-                        onkeydown="handleMainTextKeydown(event)"
+                        data-keydown="handleMainTextKeydown"
                     ></textarea>
                     <button type="button" class="face-dictate-btn" id="faceDictateBtn"
-                            onclick="toggleVoiceToText()" aria-pressed="false"
+                            data-action="toggleVoiceToText()" aria-pressed="false"
                             data-tip="Tap to dictate — speak and your words become text"
                             aria-label="Voice to text dictation">
                         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
@@ -404,7 +404,7 @@
                             <path class="face-mouth" d="M8.5 14 Q12 16.8 15.5 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
                         </svg>
                     </button>
-                    <button class="main-send-button tip-left" id="mainSendButton" onclick="sendTextFromMainInput()"
+                    <button class="main-send-button tip-left" id="mainSendButton" data-action="sendTextFromMainInput()"
                             data-tip="Send your message to Atom" disabled>Send</button>
                 </div>
             </div>
@@ -414,8 +414,8 @@
                 <div class="response-header">
                     <div class="response-title">Conversation</div>
                     <div class="conversation-controls">
-                        <button class="control-button tip-bottom" onclick="clearConversation()" data-tip="Clear this conversation">Clear</button>
-                        <button class="control-button tip-bottom tip-left" onclick="closePanel()" data-tip="Close the chat panel">✕</button>
+                        <button class="control-button tip-bottom" data-action="clearConversation()" data-tip="Clear this conversation">Clear</button>
+                        <button class="control-button tip-bottom tip-left" data-action="closePanel()" data-tip="Close the chat panel">✕</button>
                     </div>
                 </div>
                 
@@ -434,10 +434,10 @@
                             id="textInput" 
                             placeholder="Type your message here..."
                             rows="1"
-                            onkeydown="handleTextInputKeydown(event)"
-                            onclick="event.stopPropagation()"
+                            data-keydown="handleTextInputKeydown"
+                            data-action="stop"
                         ></textarea>
-                        <button class="send-button" id="sendButton" onclick="sendTextFromInput()">
+                        <button class="send-button" id="sendButton" data-action="sendTextFromInput()">
                             Send
                         </button>
                     </div>
@@ -452,7 +452,7 @@
         <div class="panel-view" id="panel-inbox">
             <div class="panel-header">
                 <span class="panel-title">📥 Inbox</span>
-                <button class="panel-action-btn" onclick="loadInbox()">↻ Refresh</button>
+                <button class="panel-action-btn" data-action="loadInbox()">↻ Refresh</button>
             </div>
             <div class="panel-body" id="inboxBody">
                 <p class="panel-msg">Loading inbox…</p>
@@ -477,7 +477,7 @@
                     <label class="form-label">Message</label>
                     <textarea class="form-textarea" id="composeBody" placeholder="Write your message…"></textarea>
                 </div>
-                <button class="form-submit-btn" id="composeSendBtn" onclick="sendComposedEmail()">📤 Send Email</button>
+                <button class="form-submit-btn" id="composeSendBtn" data-action="sendComposedEmail()">📤 Send Email</button>
                 <p class="panel-msg" id="composeStatus" style="display:none;"></p>
             </div>
         </div>
@@ -499,7 +499,7 @@
         <div class="panel-view" id="panel-sent">
             <div class="panel-header">
                 <span class="panel-title">📤 Sent</span>
-                <button class="panel-action-btn" onclick="loadSent()">↻ Refresh</button>
+                <button class="panel-action-btn" data-action="loadSent()">↻ Refresh</button>
             </div>
             <div class="panel-body" id="sentBody">
                 <p class="panel-msg">Loading sent mail…</p>
@@ -510,7 +510,7 @@
         <div class="panel-view" id="panel-today">
             <div class="panel-header">
                 <span class="panel-title">📅 Today</span>
-                <button class="panel-action-btn" onclick="loadTodayEvents()">↻ Refresh</button>
+                <button class="panel-action-btn" data-action="loadTodayEvents()">↻ Refresh</button>
             </div>
             <div class="panel-body" id="todayBody">
                 <p class="panel-msg">Loading today's events…</p>
@@ -543,7 +543,7 @@
                     <label class="form-label">Description (optional)</label>
                     <textarea class="form-textarea" id="eventDesc" style="min-height:80px;" placeholder="Details…"></textarea>
                 </div>
-                <button class="form-submit-btn" id="eventSaveBtn" onclick="saveCalendarEvent()">📅 Create Event</button>
+                <button class="form-submit-btn" id="eventSaveBtn" data-action="saveCalendarEvent()">📅 Create Event</button>
                 <p class="panel-msg" id="eventStatus" style="display:none;"></p>
                 <div class="placeholder-card" style="margin-top:1rem;">
                     <div class="placeholder-text" style="font-size:0.78rem;">Calendar write support coming soon — connect Google Calendar in Settings first.</div>
@@ -555,7 +555,7 @@
         <div class="panel-view" id="panel-calview">
             <div class="panel-header">
                 <span class="panel-title">🗓️ Calendar View</span>
-                <button class="panel-action-btn" onclick="loadCalendarView()">↻ Refresh</button>
+                <button class="panel-action-btn" data-action="loadCalendarView()">↻ Refresh</button>
             </div>
             <div class="panel-body" id="calviewBody">
                 <div class="placeholder-card">
@@ -570,12 +570,12 @@
         <div class="panel-view" id="panel-crm-jobs">
             <div class="panel-header">
                 <span class="panel-title">🏗️ AccuLynx Jobs</span>
-                <button class="panel-action-btn" onclick="loadCrmJobs()">↻ Refresh</button>
+                <button class="panel-action-btn" data-action="loadCrmJobs()">↻ Refresh</button>
             </div>
             <div class="panel-body">
                 <div style="display:flex;gap:0.4rem;margin-bottom:0.75rem;">
-                    <input class="form-input" id="crmJobSearch" type="text" placeholder="Search jobs…" style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;" onkeydown="if(event.key==='Enter')loadCrmJobs()">
-                    <button class="panel-action-btn" onclick="loadCrmJobs()" style="padding:0.3rem 0.6rem;">🔍</button>
+                    <input class="form-input" id="crmJobSearch" type="text" placeholder="Search jobs…" style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;" data-enter="loadCrmJobs">
+                    <button class="panel-action-btn" data-action="loadCrmJobs()" style="padding:0.3rem 0.6rem;">🔍</button>
                 </div>
                 <div id="crmJobsBody">
                     <p class="panel-msg">Loading jobs…</p>
@@ -587,12 +587,12 @@
         <div class="panel-view" id="panel-crm-contacts">
             <div class="panel-header">
                 <span class="panel-title">👥 Contacts</span>
-                <button class="panel-action-btn" onclick="loadCrmContacts()">↻ Refresh</button>
+                <button class="panel-action-btn" data-action="loadCrmContacts()">↻ Refresh</button>
             </div>
             <div class="panel-body">
                 <div style="display:flex;gap:0.4rem;margin-bottom:0.75rem;">
-                    <input class="form-input" id="crmContactSearch" type="text" placeholder="Search contacts…" style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;" onkeydown="if(event.key==='Enter')loadCrmContacts()">
-                    <button class="panel-action-btn" onclick="loadCrmContacts()" style="padding:0.3rem 0.6rem;">🔍</button>
+                    <input class="form-input" id="crmContactSearch" type="text" placeholder="Search contacts…" style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;" data-enter="loadCrmContacts">
+                    <button class="panel-action-btn" data-action="loadCrmContacts()" style="padding:0.3rem 0.6rem;">🔍</button>
                 </div>
                 <div id="crmContactsBody">
                     <p class="panel-msg">Loading contacts…</p>
@@ -644,7 +644,7 @@
                     <label class="form-label">Notes</label>
                     <textarea class="form-textarea" id="leadNotes" style="min-height:60px;" placeholder="Roof damage, hail claim…"></textarea>
                 </div>
-                <button class="form-submit-btn" id="leadSaveBtn" onclick="createCrmLead()" style="margin-top:0.5rem;">🏗️ Create Lead</button>
+                <button class="form-submit-btn" id="leadSaveBtn" data-action="createCrmLead()" style="margin-top:0.5rem;">🏗️ Create Lead</button>
                 <p class="panel-msg" id="leadStatus" style="display:none;"></p>
             </div>
         </div>
@@ -653,7 +653,7 @@
         <div class="panel-view" id="panel-conversations">
             <div class="panel-header">
                 <span class="panel-title">💭 Conversations</span>
-                <button class="panel-action-btn" onclick="loadConversations()">↻ Refresh</button>
+                <button class="panel-action-btn" data-action="loadConversations()">↻ Refresh</button>
             </div>
             <div class="panel-body" id="conversationsBody">
                 <p class="panel-msg">Loading conversations…</p>
@@ -664,15 +664,15 @@
         <div class="panel-view" id="panel-tasks">
             <div class="panel-header">
                 <span class="panel-title">✅ Tasks</span>
-                <button class="panel-action-btn" onclick="loadScheduledTasks()">↻ Refresh</button>
+                <button class="panel-action-btn" data-action="loadScheduledTasks()">↻ Refresh</button>
             </div>
             <div class="panel-body">
                 <div style="display:flex;gap:0;margin-bottom:0.75rem;border:1px solid rgba(255,255,255,0.12);border-radius:6px;overflow:hidden;">
-                    <button id="tasksPendingBtn" onclick="setTaskFilter(true)"
+                    <button id="tasksPendingBtn" data-action="setTaskFilter(true)"
                             style="flex:1;padding:0.4rem;font-size:0.78rem;background:rgba(0,212,220,0.18);color:#00d4dc;border:none;cursor:pointer;font-family:inherit;">
                         Pending
                     </button>
-                    <button id="tasksAllBtn" onclick="setTaskFilter(false)"
+                    <button id="tasksAllBtn" data-action="setTaskFilter(false)"
                             style="flex:1;padding:0.4rem;font-size:0.78rem;background:transparent;color:#94a3b8;border:none;border-left:1px solid rgba(255,255,255,0.12);cursor:pointer;font-family:inherit;">
                         All
                     </button>
@@ -685,15 +685,15 @@
         <div class="panel-view" id="panel-knowledge">
             <div class="panel-header">
                 <span class="panel-title">🧠 Knowledge Base</span>
-                <button class="panel-action-btn" onclick="showPanel('kb-add')" style="font-size:0.75rem;padding:0.25rem 0.6rem;">+ Add</button>
+                <button class="panel-action-btn" data-action="showPanel('kb-add')" style="font-size:0.75rem;padding:0.25rem 0.6rem;">+ Add</button>
             </div>
             <div class="panel-body">
                 <!-- Search bar -->
                 <div style="display:flex;gap:0.4rem;margin-bottom:0.75rem;">
                     <input class="form-input" id="kbSearchInput" type="text" placeholder="Search knowledge base…"
                            style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;"
-                           onkeydown="if(event.key==='Enter')loadKnowledgeBase()">
-                    <button class="panel-action-btn" onclick="loadKnowledgeBase()" style="padding:0.3rem 0.6rem;">🔍</button>
+                           data-enter="loadKnowledgeBase">
+                    <button class="panel-action-btn" data-action="loadKnowledgeBase()" style="padding:0.3rem 0.6rem;">🔍</button>
                 </div>
                 <!-- Category filter chips (populated by JS) -->
                 <div id="kbCategoryChips" style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.75rem;"></div>
@@ -710,11 +710,11 @@
             <div class="panel-body">
                 <!-- Tab switcher -->
                 <div style="display:flex;gap:0;margin-bottom:1rem;border:1px solid rgba(255,255,255,0.12);border-radius:6px;overflow:hidden;">
-                    <button id="kbTabText" onclick="switchKbTab('text')"
+                    <button id="kbTabText" data-action="switchKbTab('text')"
                         style="flex:1;padding:0.4rem;font-size:0.78rem;background:rgba(34,197,94,0.18);color:#00d4dc;border:none;cursor:pointer;font-family:inherit;">
                         ✏️ Write
                     </button>
-                    <button id="kbTabFile" onclick="switchKbTab('file')"
+                    <button id="kbTabFile" data-action="switchKbTab('file')"
                         style="flex:1;padding:0.4rem;font-size:0.78rem;background:transparent;color:#94a3b8;border:none;cursor:pointer;font-family:inherit;">
                         📎 Upload File
                     </button>
@@ -735,7 +735,7 @@
                         <textarea class="form-textarea" id="kbEntryContent" style="min-height:140px;"
                             placeholder="Paste or write any information Atom should know…"></textarea>
                     </div>
-                    <button class="form-submit-btn" id="kbSaveBtn" onclick="saveKbEntry()">🧠 Save to Knowledge Base</button>
+                    <button class="form-submit-btn" id="kbSaveBtn" data-action="saveKbEntry()">🧠 Save to Knowledge Base</button>
                 </div>
 
                 <!-- Upload tab -->
@@ -753,7 +753,7 @@
                         <input class="form-input" id="kbFileInput" type="file" accept=".txt,.md,.pdf"
                             style="padding:0.35rem;font-size:0.8rem;">
                     </div>
-                    <button class="form-submit-btn" id="kbUploadBtn" onclick="uploadKbFile()">📎 Upload File</button>
+                    <button class="form-submit-btn" id="kbUploadBtn" data-action="uploadKbFile()">📎 Upload File</button>
                 </div>
 
                 <p class="panel-msg" id="kbAddStatus" style="display:none;margin-top:0.6rem;"></p>
@@ -764,7 +764,7 @@
         <div class="panel-view" id="panel-kb-detail">
             <div class="panel-header">
                 <span class="panel-title" id="kbDetailTitle">🧠 Entry</span>
-                <button class="panel-action-btn" onclick="showPanel('knowledge')" style="font-size:0.72rem;padding:0.2rem 0.5rem;">← Back</button>
+                <button class="panel-action-btn" data-action="showPanel('knowledge')" style="font-size:0.72rem;padding:0.2rem 0.5rem;">← Back</button>
             </div>
             <div class="panel-body" id="kbDetailBody">
                 <p class="panel-msg">Loading…</p>
@@ -775,7 +775,7 @@
         <div class="panel-view" id="panel-connections">
             <div class="panel-header">
                 <span class="panel-title">🔌 Connections</span>
-                <button class="panel-action-btn" onclick="loadConnections()">↻ Refresh</button>
+                <button class="panel-action-btn" data-action="loadConnections()">↻ Refresh</button>
             </div>
             <div class="panel-body" id="connectionsBody">
                 <p class="panel-msg">Checking connections…</p>
@@ -786,11 +786,11 @@
     </div><!-- /app -->
 
 
-    <div class="settings-overlay" id="settingsModal" onclick="if(event.target===this)closeSettings()">
+    <div class="settings-overlay" id="settingsModal" data-action-self="closeSettings">
         <div class="settings-panel">
             <div class="settings-header">
                 <span class="settings-title">⚙️ Atom Settings</span>
-                <button class="settings-close" onclick="closeSettings()">✕</button>
+                <button class="settings-close" data-action="closeSettings()">✕</button>
             </div>
 
             <!-- Email Section -->
@@ -807,10 +807,10 @@
                 </div>
 
                 <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-                    <button class="settings-btn" id="gmailConnectBtn" onclick="connectGmail()" style="flex:1;min-width:160px;">
+                    <button class="settings-btn" id="gmailConnectBtn" data-action="connectGmail()" style="flex:1;min-width:160px;">
                         🔗 Connect Gmail
                     </button>
-                    <button class="settings-btn" id="gmailDisconnectBtn" onclick="disconnectGmail()"
+                    <button class="settings-btn" id="gmailDisconnectBtn" data-action="disconnectGmail()"
                             style="flex:1;min-width:160px;background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3);display:none;">
                         🔌 Disconnect Gmail
                     </button>
@@ -841,10 +841,10 @@
                 </div>
 
                 <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-                    <button class="settings-btn" id="outlookConnectBtn" onclick="connectOutlook()" style="flex:1;min-width:160px;">
+                    <button class="settings-btn" id="outlookConnectBtn" data-action="connectOutlook()" style="flex:1;min-width:160px;">
                         🔗 Connect Outlook
                     </button>
-                    <button class="settings-btn" id="outlookDisconnectBtn" onclick="disconnectOutlook()"
+                    <button class="settings-btn" id="outlookDisconnectBtn" data-action="disconnectOutlook()"
                             style="flex:1;min-width:160px;background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3);display:none;">
                         🔌 Disconnect Outlook
                     </button>
@@ -900,6 +900,7 @@
     </div><!-- /settings-overlay -->
 
     <!-- JavaScript modules (load order matters) -->
+    <script src="/js/dispatch.js"></script>
     <script src="/js/api.js"></script>
     <script src="/js/chat.js"></script>
     <script src="/js/voice.js"></script>
@@ -907,80 +908,7 @@
     <script src="/js/settings.js"></script>
 
     <!-- Bootstrap -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            setupTextInput(); // wire input listeners regardless of login state
-            if (AtomAPI.isLoggedIn()) { showApp(); }
-            // else: auth screen visible by default
-        });
-
-        // ─── Auth screen ───────────────────────────────────────────────────
-        function authSwitchTab(tab) {
-            document.getElementById('authFormLogin').style.display    = tab === 'login'    ? '' : 'none';
-            document.getElementById('authFormRegister').style.display = tab === 'register' ? '' : 'none';
-            document.getElementById('authTabLogin').classList.toggle('active', tab === 'login');
-            document.getElementById('authTabRegister').classList.toggle('active', tab === 'register');
-            document.getElementById('authError').textContent = '';
-        }
-        async function handleAuthLogin() {
-            const email = document.getElementById('authLoginEmail').value.trim();
-            const password = document.getElementById('authLoginPassword').value;
-            const btn = document.getElementById('authLoginBtn');
-            const errEl = document.getElementById('authError');
-            errEl.textContent = '';
-            if (!email || !password) { errEl.textContent = 'Please enter email and password.'; return; }
-            btn.disabled = true; btn.textContent = 'Signing in...';
-            try { await AtomAPI.login(email, password); showApp(); }
-            catch (e) { errEl.textContent = e.message || 'Login failed.'; }
-            finally { btn.disabled = false; btn.textContent = 'Sign In'; }
-        }
-        async function handleAuthRegister() {
-            const name = document.getElementById('authRegName').value.trim();
-            const email = document.getElementById('authRegEmail').value.trim();
-            const password = document.getElementById('authRegPassword').value;
-            const btn = document.getElementById('authRegisterBtn');
-            const errEl = document.getElementById('authError');
-            errEl.textContent = '';
-            if (!email || !password) { errEl.textContent = 'Email and password are required.'; return; }
-            if (password.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; return; }
-            btn.disabled = true; btn.textContent = 'Creating account...';
-            try { await AtomAPI.register(email, password, name || undefined); showApp(); }
-            catch (e) { errEl.textContent = e.message || 'Registration failed.'; }
-            finally { btn.disabled = false; btn.textContent = 'Create Account'; }
-        }
-        document.addEventListener('keydown', function(e) {
-            if (e.key !== 'Enter') return;
-            const s = document.getElementById('authScreen');
-            if (!s || s.classList.contains('hidden')) return;
-            if (document.getElementById('authFormLogin').style.display !== 'none') handleAuthLogin();
-            else handleAuthRegister();
-        });
-        function showApp() {
-            document.getElementById('authScreen').classList.add('hidden');
-            bootApp();
-        }
-        async function bootApp() {
-            await AtomAPI.loadConfig();
-            initializeWaveform();
-            startWaveformAnimation();
-            setupTextInput();
-            checkBackendStatus();
-            updateConversationDisplay();
-            // Click outside response area collapses it — but interacting with the
-            // composer (text box, Send, dictate, mode icons) must NOT close the chat.
-            document.addEventListener('click', function(e) {
-                const responseArea = document.getElementById('responseArea');
-                if (!responseArea || !responseArea.classList.contains('pinned')) return;
-                if (e.target.closest && e.target.closest(
-                    '.response-area, .main-text-bar, .mode-icons, #vttButtonContainer, #muteBtn, .chat-hover-zone'
-                )) return;
-                unpinResponseArea();
-            });
-            // Hovering the right edge of the dashboard opens the chat panel
-            const hoverZone = document.getElementById('chatHoverZone');
-            if (hoverZone) hoverZone.addEventListener('mouseenter', pinResponseArea);
-        }
-    </script>
+    <script src="/js/boot.js"></script>
 
 </body>
 </html>

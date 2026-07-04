@@ -120,8 +120,8 @@ function updateConversationDisplay() {
                         <div class="message-sender">Atom — Action needed</div>
                         <div class="message-content confirm-body">${safeContent.replace(/\n/g, '<br>')}</div>
                         <div class="confirm-buttons">
-                            <button class="confirm-yes-btn" onclick="confirmAction(${idx})">Confirm</button>
-                            <button class="confirm-no-btn"  onclick="cancelAction(${idx})">Cancel</button>
+                            <button class="confirm-yes-btn" data-action="confirmAction(${idx})">Confirm</button>
+                            <button class="confirm-no-btn"  data-action="cancelAction(${idx})">Cancel</button>
                         </div>
                     </div>`;
             } else {

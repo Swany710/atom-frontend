@@ -74,7 +74,7 @@ test.describe('Text send', () => {
 test.describe('Sidebar navigation', () => {
     test('hamburger menu opens sidebar', async ({ page }) => {
         await page.goto(BASE_URL);
-        const menuBtn = page.locator('.menu-toggle, [onclick*="toggleMenu"]').first();
+        const menuBtn = page.locator('.menu-toggle, [data-action*="toggleMenu"]').first();
         await menuBtn.click();
         const sidebar = page.locator('#sidebar, .sidebar').first();
         await expect(sidebar).toHaveClass(/open|visible|active/, { timeout: 2000 });
@@ -82,9 +82,9 @@ test.describe('Sidebar navigation', () => {
 
     test('clicking Inbox nav item activates inbox panel', async ({ page }) => {
         await page.goto(BASE_URL);
-        const menuBtn = page.locator('.menu-toggle, [onclick*="toggleMenu"]').first();
+        const menuBtn = page.locator('.menu-toggle, [data-action*="toggleMenu"]').first();
         await menuBtn.click();
-        const inboxNav = page.locator('#nav-inbox, [onclick*="showPanel(\'inbox\')"]').first();
+        const inboxNav = page.locator('#nav-inbox, [data-action*="showPanel(\'inbox\')"]').first();
         await inboxNav.click();
         const inboxPanel = page.locator('#panel-inbox, [id*="inbox"]').first();
         await expect(inboxPanel).toBeVisible({ timeout: 3000 });
@@ -92,9 +92,9 @@ test.describe('Sidebar navigation', () => {
 
     test('clicking Conversations nav item shows conversations panel', async ({ page }) => {
         await page.goto(BASE_URL);
-        const menuBtn = page.locator('.menu-toggle, [onclick*="toggleMenu"]').first();
+        const menuBtn = page.locator('.menu-toggle, [data-action*="toggleMenu"]').first();
         await menuBtn.click();
-        const convNav = page.locator('#nav-conversations, [onclick*="showPanel(\'conversations\')"]').first();
+        const convNav = page.locator('#nav-conversations, [data-action*="showPanel(\'conversations\')"]').first();
         await convNav.click();
         const convPanel = page.locator('#panel-conversations, [id*="conversation"]').first();
         await expect(convPanel).toBeVisible({ timeout: 3000 });
@@ -104,9 +104,9 @@ test.describe('Sidebar navigation', () => {
 test.describe('Settings modal', () => {
     test('settings modal opens when triggered', async ({ page }) => {
         await page.goto(BASE_URL);
-        const menuBtn = page.locator('.menu-toggle, [onclick*="toggleMenu"]').first();
+        const menuBtn = page.locator('.menu-toggle, [data-action*="toggleMenu"]').first();
         await menuBtn.click();
-        const settingsBtn = page.locator('#nav-settings, [onclick*="openSettings"]').first();
+        const settingsBtn = page.locator('#nav-settings, [data-action*="openSettings"]').first();
         await settingsBtn.click();
         const modal = page.locator('#settingsModal, .settings-overlay').first();
         await expect(modal).toHaveClass(/visible/, { timeout: 2000 });
@@ -114,13 +114,13 @@ test.describe('Settings modal', () => {
 
     test('settings modal closes on close button', async ({ page }) => {
         await page.goto(BASE_URL);
-        const menuBtn = page.locator('.menu-toggle, [onclick*="toggleMenu"]').first();
+        const menuBtn = page.locator('.menu-toggle, [data-action*="toggleMenu"]').first();
         await menuBtn.click();
-        const settingsBtn = page.locator('#nav-settings, [onclick*="openSettings"]').first();
+        const settingsBtn = page.locator('#nav-settings, [data-action*="openSettings"]').first();
         await settingsBtn.click();
         const modal = page.locator('#settingsModal, .settings-overlay').first();
         await expect(modal).toHaveClass(/visible/);
-        const closeBtn = page.locator('.settings-close, [onclick*="closeSettings"]').first();
+        const closeBtn = page.locator('.settings-close, [data-action*="closeSettings"]').first();
         await closeBtn.click();
         await expect(modal).not.toHaveClass(/visible/, { timeout: 2000 });
     });
@@ -129,9 +129,9 @@ test.describe('Settings modal', () => {
 test.describe('Knowledge base panel', () => {
     test('KB panel loads and shows search UI', async ({ page }) => {
         await page.goto(BASE_URL);
-        const menuBtn = page.locator('.menu-toggle, [onclick*="toggleMenu"]').first();
+        const menuBtn = page.locator('.menu-toggle, [data-action*="toggleMenu"]').first();
         await menuBtn.click();
-        const kbNav = page.locator('#nav-knowledge, [onclick*="showPanel(\'knowledge\')"]').first();
+        const kbNav = page.locator('#nav-knowledge, [data-action*="showPanel(\'knowledge\')"]').first();
         await kbNav.click();
         const kbPanel = page.locator('#panel-knowledge').first();
         await expect(kbPanel).toBeVisible({ timeout: 3000 });
@@ -142,9 +142,9 @@ test.describe('Knowledge base panel', () => {
 test.describe('Conversation panel', () => {
     test('conversations panel opens and shows content area', async ({ page }) => {
         await page.goto(BASE_URL);
-        const menuBtn = page.locator('.menu-toggle, [onclick*="toggleMenu"]').first();
+        const menuBtn = page.locator('.menu-toggle, [data-action*="toggleMenu"]').first();
         await menuBtn.click();
-        const convNav = page.locator('[onclick*="showPanel(\'conversations\')"]').first();
+        const convNav = page.locator('[data-action*="showPanel(\'conversations\')"]').first();
         await convNav.click();
         const list = page.locator('#conversationsList, #panel-conversations').first();
         await expect(list).toBeVisible({ timeout: 3000 });
@@ -154,7 +154,7 @@ test.describe('Conversation panel', () => {
 test.describe('Scheduled tasks panel', () => {
     test('tasks panel opens and shows task filters', async ({ page }) => {
         await page.goto(BASE_URL);
-        const menuBtn = page.locator('.menu-toggle, [onclick*="toggleMenu"]').first();
+        const menuBtn = page.locator('.menu-toggle, [data-action*="toggleMenu"]').first();
         await menuBtn.click();
         await page.locator('#nav-tasks').click();
         await expect(page.locator('#panel-tasks')).toBeVisible({ timeout: 3000 });

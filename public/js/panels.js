@@ -427,7 +427,7 @@ async function loadKnowledgeBase() {
         if (chips) {
             chips.innerHTML = ['All', ...cats].map(cat => {
                 const active = (cat === 'All' && !kbActiveCat) || cat === kbActiveCat;
-                return `<button onclick="setKbCategory('${cat === 'All' ? '' : cat}')"
+                return `<button data-action="setKbCategory('${cat === 'All' ? '' : cat}')"
                     style="padding:0.2rem 0.55rem;font-size:0.73rem;border-radius:99px;border:1px solid ${active ? '#00d4dc' : 'rgba(255,255,255,0.12)'};background:${active ? 'rgba(34,197,94,0.18)' : 'transparent'};color:${active ? '#00d4dc' : '#94a3b8'};cursor:pointer;font-family:inherit;">${esc(cat)}</button>`;
             }).join('');
         }
@@ -453,10 +453,7 @@ async function loadKnowledgeBase() {
 
         body.innerHTML = `<div style="font-size:0.73rem;color:#64748b;margin-bottom:0.5rem;">${total} entr${total === 1 ? 'y' : 'ies'}</div>` +
             entries.map(e => `
-            <div onclick="viewKbEntry('${esc(e.id)}', ${JSON.stringify(esc(e.title)).replace(/"/g, "'")})"
-                 style="border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:0.65rem 0.85rem;margin-bottom:0.45rem;background:rgba(255,255,255,0.03);cursor:pointer;"
-                 onmouseover="this.style.background='rgba(255,255,255,0.06)'"
-                 onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+            <div data-action="viewKbEntry('${esc(e.id)}')" class="kb-entry-card">
                 <div style="font-weight:600;color:#e2e8f0;margin-bottom:0.15rem;">${esc(e.title)}</div>
                 ${e.category ? `<span style="font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:99px;background:rgba(34,197,94,0.12);color:#00d4dc;">${esc(e.category)}</span>` : ''}
                 <div style="font-size:0.75rem;color:#94a3b8;margin-top:0.25rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(e.content.slice(0, 120))}</div>
@@ -472,14 +469,15 @@ function setKbCategory(cat) {
     loadKnowledgeBase();
 }
 
-async function viewKbEntry(id, title) {
-    document.getElementById('kbDetailTitle').textContent = '🧠 ' + title;
+async function viewKbEntry(id) {
+    document.getElementById('kbDetailTitle').textContent = 'Loading…';
     const detailBody = document.getElementById('kbDetailBody');
     AtomAPI.state(detailBody).loading('Loading…');
     showPanel('kb-detail');
     try {
         const data = await AtomAPI.get(`/knowledge-base/${id}`);
         const e    = data.entry || data;
+        document.getElementById('kbDetailTitle').textContent = '🧠 ' + (e.title || 'Entry');
         detailBody.innerHTML = `
             <div style="margin-bottom:0.75rem;">
                 ${e.category ? `<span style="font-size:0.72rem;padding:0.15rem 0.5rem;border-radius:99px;background:rgba(34,197,94,0.12);color:#00d4dc;margin-right:0.4rem;">${esc(e.category)}</span>` : ''}
@@ -488,7 +486,7 @@ async function viewKbEntry(id, title) {
             </div>
             <div style="white-space:pre-wrap;font-size:0.83rem;color:#cbd5e1;line-height:1.6;border-top:1px solid rgba(255,255,255,0.06);padding-top:0.75rem;">${esc(e.content)}</div>
             <div style="margin-top:1rem;display:flex;gap:0.5rem;">
-                <button class="panel-action-btn" onclick="deleteKbEntry('${id}')" style="background:rgba(239,68,68,0.12);color:#ef4444;border-color:#ef4444;">🗑 Delete</button>
+                <button class="panel-action-btn" data-action="deleteKbEntry('${id}')" style="background:rgba(239,68,68,0.12);color:#ef4444;border-color:#ef4444;">🗑 Delete</button>
             </div>`;
     } catch (err) {
         AtomAPI.state(detailBody).error(esc(err.message));
@@ -695,7 +693,7 @@ function renderScheduledTask(task) {
             <div class="crm-sub">${esc(task.taskType || '')}${task.resultSummary ? ' - ' + esc(task.resultSummary) : ''}</div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.45rem;gap:0.5rem;">
                 <span class="crm-badge">${esc(status)}</span>
-                ${canCancel ? `<button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;color:#ef4444;border-color:#ef4444;" onclick="cancelScheduledTask('${esc(task.id)}')">Cancel</button>` : ''}
+                ${canCancel ? `<button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;color:#ef4444;border-color:#ef4444;" data-action="cancelScheduledTask('${esc(task.id)}')">Cancel</button>` : ''}
             </div>
         </div>`;
 }
@@ -732,8 +730,8 @@ async function loadConnections() {
         const badge = d.connected ? 'ok' : d.setupRequired ? 'err' : 'warn';
         const label = d.connected ? `Connected (${d.emailAddress || ''})` : d.setupRequired ? 'Setup required' : 'Not connected';
         const extra = d.connected
-            ? `<div style="display:flex;gap:0.3rem;"><button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="openSettings()">⚙ Settings</button><button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;color:#ef4444;" onclick="disconnectGmail()">Disconnect</button></div>`
-            : `<button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="openSettings()">Connect</button>`;
+            ? `<div style="display:flex;gap:0.3rem;"><button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;" data-action="openSettings()">⚙ Settings</button><button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;color:#ef4444;" data-action="disconnectGmail()">Disconnect</button></div>`
+            : `<button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;" data-action="openSettings()">Connect</button>`;
         cards.push(connCard('📧', 'Gmail', 'Email & Calendar', badge, label, extra));
     } catch { cards.push(connCard('📧', 'Gmail', 'Email & Calendar', 'warn', 'Status unavailable')); }
 
@@ -744,8 +742,8 @@ async function loadConnections() {
         const badge = d.connected ? 'ok' : d.setupRequired ? 'err' : 'warn';
         const label = d.connected ? `Connected (${d.emailAddress || ''})` : d.setupRequired ? 'Setup required' : 'Not connected';
         const extra = d.connected
-            ? `<div style="display:flex;gap:0.3rem;"><button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="openSettings()">⚙ Settings</button><button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;color:#ef4444;" onclick="disconnectOutlook()">Disconnect</button></div>`
-            : `<button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="openSettings()">Connect</button>`;
+            ? `<div style="display:flex;gap:0.3rem;"><button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;" data-action="openSettings()">⚙ Settings</button><button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;color:#ef4444;" data-action="disconnectOutlook()">Disconnect</button></div>`
+            : `<button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;" data-action="openSettings()">Connect</button>`;
         cards.push(connCard('📨', 'Outlook', 'Microsoft email', badge, label, extra));
     } catch { cards.push(connCard('📨', 'Outlook', 'Microsoft email', 'warn', 'Status unavailable')); }
 
@@ -758,7 +756,7 @@ async function loadConnections() {
         const r = await AtomAPI.get('/integrations/calendar/status');
         const badge = r.connected ? 'ok' : 'warn';
         const label = r.connected ? `Connected (${r.emailAddress || ''})` : r.note || 'Not connected';
-        cards.push(connCard('🗓️', 'Google Calendar', 'Calendar sync', badge, label, `<button class="panel-action-btn" style="font-size:0.75rem;padding:0.25rem 0.6rem;" onclick="showPanel('today')">View</button>`));
+        cards.push(connCard('🗓️', 'Google Calendar', 'Calendar sync', badge, label, `<button class="panel-action-btn" style="font-size:0.75rem;padding:0.25rem 0.6rem;" data-action="showPanel('today')">View</button>`));
     } catch { cards.push(connCard('🗓️', 'Google Calendar', 'Calendar sync', 'warn', 'Status unavailable')); }
 
     // 6. CRM
@@ -766,7 +764,7 @@ async function loadConnections() {
         const r = await AtomAPI.get('/integrations/crm/status');
         const badge = r.connected ? 'ok' : 'warn';
         const label = r.connected ? 'Connected' : r.message || 'Not connected';
-        cards.push(connCard('🏗️', 'AccuLynx CRM', 'Jobs & contacts', badge, label, `<button class="panel-action-btn" style="font-size:0.75rem;padding:0.25rem 0.6rem;" onclick="showPanel('crm-jobs')">View Jobs</button>`));
+        cards.push(connCard('🏗️', 'AccuLynx CRM', 'Jobs & contacts', badge, label, `<button class="panel-action-btn" style="font-size:0.75rem;padding:0.25rem 0.6rem;" data-action="showPanel('crm-jobs')">View Jobs</button>`));
     } catch { cards.push(connCard('🏗️', 'AccuLynx CRM', 'Jobs & contacts', 'warn', 'Status unavailable')); }
 
     body.innerHTML = cards.join('');

@@ -15,15 +15,13 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc:  ["'self'"],
-      scriptSrc:   ["'self'", "'unsafe-inline'"],   // inline scripts used throughout public/js
-      // Helmet's default CSP sets `script-src-attr 'none'`, which blocks ALL
-      // inline event-handler attributes (onclick, onkeydown, etc.) even when
-      // script-src allows 'unsafe-inline'. The entire UI is wired with inline
-      // handlers, so without this every button, the nav menu, login, and chat
-      // silently do nothing. Re-enable inline handlers explicitly.
-      // NOTE: longer-term, migrate handlers to addEventListener and drop this.
-      scriptSrcAttr: ["'unsafe-inline'"],
-      styleSrc:    ["'self'", "'unsafe-inline'"],   // inline styles used in index.html
+      // Scripts: same-origin files ONLY. All former inline <script> blocks
+      // live in /js/boot.js, and every inline onclick=/onkeydown= attribute
+      // was migrated to data-action/data-enter handled by /js/dispatch.js —
+      // so no 'unsafe-inline' and Helmet's default script-src-attr 'none'
+      // stands. Injected markup can no longer execute script.
+      scriptSrc:   ["'self'"],
+      styleSrc:    ["'self'", "'unsafe-inline'"],   // inline style="" attrs still used in markup
       mediaSrc:    ["'self'", 'blob:'],             // blob: URLs for recorded audio playback
       connectSrc:  ["'self'", "wss://api.openai.com", "https://api.openai.com"],  // API proxy + OpenAI Realtime WebSocket
       imgSrc:      ["'self'", 'data:'],
@@ -51,6 +49,24 @@ const HOP_BY_HOP = new Set([
 
 const PROXY_TIMEOUT_MS = 65_000;
 
+// ─── Anonymous allowlist ───────────────────────────────────────────────────────
+// SECURITY: the proxy signs requests with the server-side API_KEY, which the
+// backend treats as OWNER-level credentials. Previously EVERY anonymous request
+// got that signature — meaning anyone who could reach this frontend had full
+// access to the owner's email, calendar, and CRM without logging in.
+//
+// Now only these paths may pass through without a logged-in user (JWT).
+// Everything else returns 401 until the browser supplies X-Atom-Token.
+const ANON_ALLOWED = [
+  /^\/auth\/login$/,       // must be reachable to log in at all
+  /^\/auth\/register$/,    // beta signup
+  /^\/health(\/|$)/,       // liveness probes
+];
+
+function isAnonAllowed(backendPath) {
+  return ANON_ALLOWED.some((re) => re.test(backendPath));
+}
+
 // ─── Backend HTTP proxy ────────────────────────────────────────────────────────
 app.all('/proxy/*', (req, res) => {
   const targetPath = req.path.replace(/^\/proxy/, '') || '/';
@@ -71,14 +87,24 @@ app.all('/proxy/*', (req, res) => {
   }
   delete headers['host'];
 
-  // If the frontend sends a user JWT, use it; otherwise fall back to API key
+  // Auth forwarding:
+  //   Logged-in user  → forward their JWT; the backend scopes data to them.
+  //   Anonymous       → only allowlisted paths (login/register/health) pass,
+  //                     signed with the API key so the backend accepts them.
+  //   Anything else   → 401. The API key must NEVER be attached to arbitrary
+  //                     anonymous requests — it is the owner/admin credential.
   const userToken = req.headers['x-atom-token'];
   delete headers['x-atom-token']; // strip before forwarding to backend
   if (userToken) {
     headers['Authorization'] = `Bearer ${userToken}`;
-  } else {
+  } else if (isAnonAllowed(targetUrl.pathname)) {
     const apiKey = process.env.API_KEY || '';
     if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+  } else {
+    return res.status(401).json({
+      error: 'login_required',
+      message: 'You must be logged in to use this endpoint.',
+    });
   }
 
   const options = {
