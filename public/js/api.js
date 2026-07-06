@@ -254,12 +254,12 @@
     return res;
   }
 
-  /** POST to /auth/register — stores token, returns { accessToken, userId, email } */
-  async function register(email, password, displayName) {
+  /** POST to /auth/register — invite-only; stores token, returns { accessToken, userId, email } */
+  async function register(email, password, displayName, inviteCode) {
     const res = await request('/proxy/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, displayName }),
+      body: JSON.stringify({ email, password, displayName, inviteCode }),
     }, { noRetry: true });
     if (res && res.accessToken) setToken(res.accessToken);
     return res;

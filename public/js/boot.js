@@ -34,13 +34,15 @@ async function handleAuthRegister() {
     const name = document.getElementById('authRegName').value.trim();
     const email = document.getElementById('authRegEmail').value.trim();
     const password = document.getElementById('authRegPassword').value;
+    const inviteCode = document.getElementById('authRegInvite').value.trim();
     const btn = document.getElementById('authRegisterBtn');
     const errEl = document.getElementById('authError');
     errEl.textContent = '';
     if (!email || !password) { errEl.textContent = 'Email and password are required.'; return; }
     if (password.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; return; }
+    if (!inviteCode) { errEl.textContent = 'An invite code is required.'; return; }
     btn.disabled = true; btn.textContent = 'Creating account...';
-    try { await AtomAPI.register(email, password, name || undefined); showApp(); }
+    try { await AtomAPI.register(email, password, name || undefined, inviteCode); showApp(); }
     catch (e) { errEl.textContent = e.message || 'Registration failed.'; }
     finally { btn.disabled = false; btn.textContent = 'Create Account'; }
 }
