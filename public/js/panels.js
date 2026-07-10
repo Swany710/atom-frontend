@@ -89,6 +89,7 @@ function showPanel(name) {
     if (name === 'today')         loadTodayEvents();
     if (name === 'calview')       loadCalendarView();
     if (name === 'tasks')         loadScheduledTasks();
+    if (name === 'notes')         loadNotes();
 }
 
 // ── Inbox ──────────────────────────────────────────────────────────────────
@@ -781,4 +782,75 @@ function connCard(icon, name, sub, badgeCls, badgeLabel, extra = '') {
             ${extra}
         </div>
     </div>`;
+}
+
+// ── Notes ───────────────────────────────────────────────────────────────────
+
+async function loadNotes() {
+    const body = document.getElementById('notesBody');
+    if (!body) return;
+    const s = AtomAPI.state(body);
+    s.loading('Loading notes…');
+    try {
+        const q    = (document.getElementById('notesSearchInput')?.value || '').trim();
+        const path = q ? `/notes?search=${encodeURIComponent(q)}` : '/notes';
+        const data = await AtomAPI.get(path);
+        const notes = responseList(data, ['notes']);
+
+        if (!notes.length) {
+            s.empty(q ? 'No notes match that search.' : 'No notes yet — write one above, or just tell Atom "note that…" in chat.');
+            return;
+        }
+        body.innerHTML = notes.map(renderNote).join('');
+    } catch (err) {
+        s.error('Could not load notes: ' + esc(err.message));
+    }
+}
+
+function renderNote(n) {
+    const when = n.createdAt ? new Date(n.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
+    return `<div class="conn-card" style="align-items:flex-start;">
+        <div style="flex:1;min-width:0;">
+            ${n.title ? `<div class="conn-name" style="margin-bottom:0.2rem;">${esc(n.title)}</div>` : ''}
+            <div style="font-size:0.82rem;color:#cbd5e1;white-space:pre-wrap;word-break:break-word;">${esc(n.content)}</div>
+            <div style="font-size:0.7rem;color:#64748b;margin-top:0.35rem;">${esc(when)}</div>
+        </div>
+        <button class="panel-action-btn" style="font-size:0.72rem;padding:0.2rem 0.5rem;flex-shrink:0;margin-left:0.5rem;"
+                data-action="deleteNoteUi('${n.id}')">🗑</button>
+    </div>`;
+}
+
+async function addNoteFromPanel() {
+    const titleEl   = document.getElementById('noteTitleInput');
+    const contentEl = document.getElementById('noteContentInput');
+    const btn       = document.getElementById('noteSaveBtn');
+    const content   = (contentEl?.value || '').trim();
+    if (!content) { contentEl?.focus(); return; }
+
+    const done = AtomAPI.withButton(btn, 'Saving…');
+    try {
+        const res = await AtomAPI.post('/notes', {
+            content,
+            title: (titleEl?.value || '').trim() || undefined,
+        });
+        if (res && res.success === false) throw new Error(res.error || 'Save failed');
+        if (titleEl)   titleEl.value = '';
+        if (contentEl) contentEl.value = '';
+        loadNotes();
+    } catch (err) {
+        alert('Could not save note: ' + err.message);
+    } finally {
+        done();
+    }
+}
+
+async function deleteNoteUi(id) {
+    if (!confirm('Delete this note?')) return;
+    try {
+        const res = await AtomAPI.del(`/notes/${id}`);
+        if (res && res.success === false) throw new Error(res.error || 'Delete failed');
+        loadNotes();
+    } catch (err) {
+        alert('Could not delete note: ' + err.message);
+    }
 }

@@ -295,6 +295,9 @@
                 <div class="nav-item" id="nav-tasks" data-action="showPanel('tasks')">
                     <span class="nav-icon">✅</span> Tasks
                 </div>
+                <div class="nav-item" id="nav-notes" data-action="showPanel('notes')">
+                    <span class="nav-icon">📝</span> Notes
+                </div>
                 <div class="nav-item" id="nav-knowledge" data-action="showPanel('knowledge')">
                     <span class="nav-icon">🧠</span> Knowledge Base
                 </div>
@@ -679,6 +682,33 @@
                     </button>
                 </div>
                 <div id="tasksBody"><p class="panel-msg">Loading tasks...</p></div>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: Notes ═══════════════════════════════════════════════ -->
+        <div class="panel-view" id="panel-notes">
+            <div class="panel-header">
+                <span class="panel-title">📝 Notes</span>
+                <button class="panel-action-btn" data-action="loadNotes()">↻ Refresh</button>
+            </div>
+            <div class="panel-body">
+                <!-- Add note -->
+                <div style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.75rem;">
+                    <input class="form-input" id="noteTitleInput" type="text" placeholder="Title (optional)"
+                           style="padding:0.4rem 0.6rem;font-size:0.82rem;">
+                    <textarea class="form-input" id="noteContentInput" placeholder="Write a note…"
+                              rows="3" style="padding:0.4rem 0.6rem;font-size:0.82rem;resize:vertical;"></textarea>
+                    <button class="panel-action-btn" id="noteSaveBtn" data-action="addNoteFromPanel()"
+                            style="align-self:flex-end;">+ Save note</button>
+                </div>
+                <!-- Search -->
+                <div style="display:flex;gap:0.4rem;margin-bottom:0.75rem;">
+                    <input class="form-input" id="notesSearchInput" type="text" placeholder="Search notes…"
+                           data-enter="loadNotes"
+                           style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;">
+                    <button class="panel-action-btn" data-action="loadNotes()">Search</button>
+                </div>
+                <div id="notesBody"><p class="panel-msg">Loading notes…</p></div>
             </div>
         </div>
 
