@@ -107,6 +107,17 @@
           (body && typeof body === 'object' && (body.message || body.error)) ||
           (typeof body === 'string' && body) ||
           `HTTP ${res.status}`;
+
+        // Expired/invalid session: the backend returns 401 for a stale JWT.
+        // Clear the dead token and return to the login screen instead of
+        // surfacing a confusing "invalid API key" error in every panel.
+        // (Skip /auth/ requests — a failed login attempt is a normal 401.)
+        if (res.status === 401 && getToken() && !url.includes('/auth/')) {
+          clearToken();
+          location.reload();
+          return new Promise(() => {}); // halt callers — page is reloading
+        }
+
         const err = new Error(message);
         err.status = res.status;
         err.body   = body;
