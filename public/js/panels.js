@@ -750,7 +750,8 @@ async function loadConnections() {
 
     // 4. AI + Voice (always active)
     cards.push(connCard('🧠', 'Claude (Anthropic)', 'AI model', 'ok', 'Active'));
-    cards.push(connCard('🎙️', 'Whisper (OpenAI)', 'Voice transcription', 'ok', 'Active'));
+    cards.push(connCard('🎙️', 'ElevenLabs', 'Voice — speech-to-text (Scribe) + text-to-speech', 'ok', 'Active'));
+    cards.push(connCard('🧮', 'OpenAI', 'Knowledge base search embeddings', 'ok', 'Active'));
 
     // 5. Google Calendar
     try {
