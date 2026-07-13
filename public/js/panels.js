@@ -758,8 +758,11 @@ async function loadConnections() {
         const r = await AtomAPI.get('/integrations/calendar/status');
         const badge = r.connected ? 'ok' : 'warn';
         const label = r.connected ? `Connected (${r.emailAddress || ''})` : r.note || 'Not connected';
-        cards.push(connCard('🗓️', 'Google Calendar', 'Calendar sync', badge, label, `<button class="panel-action-btn" style="font-size:0.75rem;padding:0.25rem 0.6rem;" data-action="showPanel('today')">View</button>`));
-    } catch { cards.push(connCard('🗓️', 'Google Calendar', 'Calendar sync', 'warn', 'Status unavailable')); }
+        const calName = r.provider === 'outlook' ? 'Outlook Calendar'
+                      : r.provider === 'google'  ? 'Google Calendar'
+                      : 'Calendar';
+        cards.push(connCard('🗓️', calName, 'Calendar sync', badge, label, `<button class="panel-action-btn" style="font-size:0.75rem;padding:0.25rem 0.6rem;" data-action="showPanel('today')">View</button>`));
+    } catch { cards.push(connCard('🗓️', 'Calendar', 'Calendar sync', 'warn', 'Status unavailable')); }
 
     // 6. CRM
     try {
