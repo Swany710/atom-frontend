@@ -423,26 +423,92 @@ async function saveCalendarEvent() {
 
 // ── CRM: Jobs ──────────────────────────────────────────────────────────────
 
+// Pipeline sections shown as collapsible groups, in this order.
+const CRM_MILESTONES = ['Lead', 'Prospect', 'Approved', 'Completed', 'Invoiced'];
+const CRM_SCOPE_KEY  = 'atom_crm_jobs_scope'; // 'mine' | 'all'
+
+/** Current scope: members are always effectively 'mine' (backend enforces). */
+function crmJobsScope() {
+    if (!AtomAPI.isOrgAdmin()) return 'mine';
+    return localStorage.getItem(CRM_SCOPE_KEY) || 'mine';
+}
+
+function setCrmJobsScope(scope) {
+    localStorage.setItem(CRM_SCOPE_KEY, scope);
+    loadCrmJobs();
+}
+
+function crmJobCard(j) {
+    return `
+        <div class="crm-card">
+            <div class="crm-title">${esc(j.name || j.jobName || j.title || 'Job')}</div>
+            <div class="crm-sub">${esc(j.customer?.name || j.customerName || '')}${j.address ? ' · ' + esc(j.address) : ''}${j.city ? ', ' + esc(j.city) : ''}</div>
+        </div>`;
+}
+
 async function loadCrmJobs() {
     const body   = document.getElementById('crmJobsBody');
     const search = document.getElementById('crmJobSearch')?.value?.trim() || '';
     const s      = AtomAPI.state(body);
+    const scope  = crmJobsScope();
+    const mineQ  = scope === 'mine' ? '&mine=true' : '';
+
+    // Scope toggle only makes sense for owner/admin (members are always scoped)
+    const toggle = AtomAPI.isOrgAdmin() ? `
+        <div style="display:flex;gap:0.4rem;margin-bottom:0.75rem;">
+            <button class="panel-action-btn" data-action="setCrmJobsScope('mine')"
+                style="${scope === 'mine' ? 'background:rgba(0,212,220,0.2);border-color:#00d4dc;' : ''}">👤 My jobs</button>
+            <button class="panel-action-btn" data-action="setCrmJobsScope('all')"
+                style="${scope === 'all' ? 'background:rgba(0,212,220,0.2);border-color:#00d4dc;' : ''}">🏢 All jobs</button>
+        </div>` : '';
+
     s.loading('Loading jobs…');
     try {
-        const url  = '/integrations/crm/jobs' + (search ? `?search=${encodeURIComponent(search)}` : '');
-        const data = await AtomAPI.get(url);
-        throwIfBackendError(data);
-        const jobs = responseList(data, ['jobs']);
-        if (!Array.isArray(jobs) || jobs.length === 0) {
-            s.empty(search ? `No jobs matching "${esc(search)}"` : 'No jobs found in AccuLynx.');
+        if (search) {
+            // Search mode: flat result list across milestones
+            const data = await AtomAPI.get(`/integrations/crm/jobs?search=${encodeURIComponent(search)}${mineQ}`);
+            throwIfBackendError(data);
+            const jobs = responseList(data, ['jobs']);
+            body.innerHTML = toggle + (jobs.length
+                ? jobs.map(crmJobCard).join('')
+                : `<div class="async-empty">No jobs matching "${esc(search)}"</div>`);
             return;
         }
-        body.innerHTML = jobs.map(j => `
-            <div class="crm-card">
-                <div class="crm-title">${esc(j.name || j.jobName || j.title || 'Job')}</div>
-                <div class="crm-sub">${esc(j.customer?.name || j.customerName || '')}${j.address ? ' · ' + esc(j.address) : ''}</div>
-                ${j.status ? `<span class="crm-badge">${esc(j.status)}</span>` : ''}
-            </div>`).join('');
+
+        // Pipeline mode: one collapsible section per milestone, loaded in parallel
+        const results = await Promise.all(CRM_MILESTONES.map(m =>
+            AtomAPI.get(`/integrations/crm/jobs?status=${encodeURIComponent(m)}&pageSize=25${mineQ}`)
+                .catch(e => ({ success: false, error: e.message }))
+        ));
+
+        // A scope-level denial (e.g. unmapped) is the same for every section
+        const denial = results.find(r => r && r.success === false && r.error);
+        if (denial && results.every(r => r && r.success === false)) {
+            body.innerHTML = toggle + `<div class="async-error">⚠️ ${esc(denial.error)}</div>`;
+            return;
+        }
+
+        const sections = CRM_MILESTONES.map((m, i) => {
+            const r    = results[i] || {};
+            const jobs = Array.isArray(r.data) ? r.data : [];
+            const count = r.total ?? jobs.length;
+            const inner = r.success === false
+                ? `<div class="async-error">⚠️ ${esc(r.error || 'failed to load')}</div>`
+                : (jobs.length ? jobs.map(crmJobCard).join('')
+                               : `<div class="async-empty" style="padding:0.5rem 0;">None</div>`);
+            return `
+            <details class="crm-section" ${jobs.length && i === 0 ? 'open' : ''} style="margin-bottom:0.5rem;">
+                <summary style="cursor:pointer;padding:0.55rem 0.7rem;background:rgba(255,255,255,0.05);
+                                border:1px solid rgba(255,255,255,0.08);border-radius:8px;
+                                display:flex;justify-content:space-between;align-items:center;list-style:none;">
+                    <b>${esc(m)}</b>
+                    <span class="crm-badge">${count}</span>
+                </summary>
+                <div style="padding:0.4rem 0.2rem 0;">${inner}</div>
+            </details>`;
+        }).join('');
+
+        body.innerHTML = toggle + sections;
     } catch (err) {
         s.error('Could not load CRM jobs: ' + esc(err.message));
     }
