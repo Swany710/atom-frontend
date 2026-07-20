@@ -51,6 +51,18 @@
     return payload && payload.email ? payload.email : null;
   }
 
+  /** Org role from the JWT: 'owner' | 'admin' | 'member' (null if not logged in) */
+  function getUserRole() {
+    var payload = getTokenPayload();
+    return payload && payload.role ? payload.role : null;
+  }
+
+  /** True when the current user may see org-admin UI (backend re-enforces) */
+  function isOrgAdmin() {
+    var r = getUserRole();
+    return r === 'owner' || r === 'admin';
+  }
+
   /** Headers added to every request. Injects JWT if present. */
   function commonHeaders(extra) {
     var h = { Accept: 'application/json' };
@@ -161,6 +173,14 @@
     return request(path, { method: 'DELETE' }, cfg);
   }
 
+  function patch(path, data, cfg) {
+    return request(path, {
+      method  : 'PATCH',
+      headers : { 'Content-Type': 'application/json' },
+      body    : JSON.stringify(data),
+    }, cfg);
+  }
+
   function postForm(path, formData, cfg) {
     // Don't set Content-Type — browser sets it with boundary for multipart
     return request(path, { method: 'POST', body: formData }, cfg);
@@ -265,12 +285,16 @@
     return res;
   }
 
-  /** POST to /auth/register — invite-only; stores token, returns { accessToken, userId, email } */
-  async function register(email, password, displayName, inviteCode) {
+  /**
+   * POST to /auth/register — invite-only; stores token.
+   * companyName names the new organization (ignored for org-bound invites,
+   * where the user joins the inviting company instead).
+   */
+  async function register(email, password, displayName, inviteCode, companyName) {
     const res = await request('/proxy/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, displayName, inviteCode }),
+      body: JSON.stringify({ email, password, displayName, inviteCode, companyName }),
     }, { noRetry: true });
     if (res && res.accessToken) setToken(res.accessToken);
     return res;
@@ -284,13 +308,13 @@
 
   global.AtomAPI = {
     base, setBase, loadConfig,
-    get, post, del, postForm, getRaw, postRaw,
+    get, post, del, patch, postForm, getRaw, postRaw,
     request,
     state, withButton, confirm,
     // Auth
     login, register, logout,
     getToken, setToken, clearToken, isLoggedIn,
-    getTokenPayload, getUserId, getUserEmail, authHeaders,
+    getTokenPayload, getUserId, getUserEmail, getUserRole, isOrgAdmin, authHeaders,
   };
 
 })(window);

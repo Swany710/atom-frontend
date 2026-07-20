@@ -219,10 +219,14 @@
             <!-- Register form -->
             <div id="authFormRegister" style="display:none;">
                 <input type="text" id="authRegName" class="auth-input" placeholder="Display name (optional)" autocomplete="name">
+                <input type="text" id="authRegCompany" class="auth-input" placeholder="Company name" autocomplete="organization">
                 <input type="email" id="authRegEmail" class="auth-input" placeholder="Email address" autocomplete="email">
                 <input type="password" id="authRegPassword" class="auth-input" placeholder="Password (8+ characters)" autocomplete="new-password">
                 <input type="text" id="authRegInvite" class="auth-input" placeholder="Invite code" autocomplete="off">
                 <button class="auth-btn" id="authRegisterBtn" data-action="handleAuthRegister()">Create Account</button>
+                <div style="color:#94a3b8;font-size:0.72rem;margin-top:0.5rem;text-align:center;">
+                    Joining an existing company with a team invite? Leave company name blank.
+                </div>
             </div>
 
             <div class="auth-error" id="authError"></div>
@@ -300,6 +304,12 @@
                 </div>
                 <div class="nav-item" id="nav-knowledge" data-action="showPanel('knowledge')">
                     <span class="nav-icon">🧠</span> Knowledge Base
+                </div>
+
+                <!-- Admin (visible only to org owner/admin — set by applyRoleGating) -->
+                <div class="nav-group-title" id="nav-group-admin" style="display:none;">Admin</div>
+                <div class="nav-item" id="nav-admin" style="display:none;" data-action="showPanel('admin')">
+                    <span class="nav-icon">🛡️</span> Team &amp; Access
                 </div>
 
                 <!-- Account -->
@@ -810,6 +820,28 @@
             </div>
             <div class="panel-body" id="connectionsBody">
                 <p class="panel-msg">Checking connections…</p>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: Admin — Team & Access (owner/admin only) ═════════════ -->
+        <div class="panel-view" id="panel-admin">
+            <div class="panel-header">
+                <span class="panel-title">🛡️ Team &amp; Access</span>
+                <button class="panel-action-btn" data-action="loadAdminPanel()">↻ Refresh</button>
+            </div>
+            <div class="panel-body">
+                <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;">
+                    <button class="panel-action-btn" data-action="adminCreateInvite()">✉️ Create team invite</button>
+                    <span id="adminInviteResult" style="font-size:0.8rem;color:#34d399;"></span>
+                </div>
+                <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:0.75rem;line-height:1.4;">
+                    Team invites join new users into <b>your company</b> as members.
+                    Members only see AccuLynx jobs assigned to their linked AccuLynx user —
+                    link each member below. Admins see everything and can manage this page.
+                </div>
+                <div id="adminMembersBody">
+                    <p class="panel-msg">Loading team…</p>
+                </div>
             </div>
         </div>
 

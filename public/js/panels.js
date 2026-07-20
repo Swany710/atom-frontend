@@ -67,6 +67,9 @@ function toggleMenu() {
 }
 
 function showPanel(name) {
+    // Admin panel: cosmetic gate — the backend RolesGuard is the real one.
+    if (name === 'admin' && !AtomAPI.isOrgAdmin()) return;
+
     document.querySelectorAll('.panel-view').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
@@ -90,6 +93,134 @@ function showPanel(name) {
     if (name === 'calview')       loadCalendarView();
     if (name === 'tasks')         loadScheduledTasks();
     if (name === 'notes')         loadNotes();
+    if (name === 'admin')         loadAdminPanel();
+}
+
+// ── Admin: Team & Access (owner/admin only — backend enforces via RolesGuard) ──
+
+/** Show the Admin nav entries only for owner/admin JWTs. Called on boot. */
+function applyRoleGating() {
+    const show = AtomAPI.isOrgAdmin();
+    const group = document.getElementById('nav-group-admin');
+    const item  = document.getElementById('nav-admin');
+    if (group) group.style.display = show ? '' : 'none';
+    if (item)  item.style.display  = show ? '' : 'none';
+}
+
+async function loadAdminPanel() {
+    const body = document.getElementById('adminMembersBody');
+    const s    = AtomAPI.state(body);
+    s.loading('Loading team…');
+    try {
+        // Members first; roster is best-effort (AccuLynx may not be connected)
+        const members = await AtomAPI.get('/orgs/members');
+        let roster = [];
+        let rosterError = null;
+        try {
+            const r = await AtomAPI.get('/integrations/crm/users');
+            if (r && r.success) roster = r.data || [];
+            else rosterError = (r && r.error) || 'AccuLynx not connected';
+        } catch (e) { rosterError = e.message; }
+
+        if (!Array.isArray(members) || members.length === 0) {
+            s.empty('No team members yet — create an invite above.');
+            return;
+        }
+
+        const myId    = AtomAPI.getUserId();
+        const isOwner = AtomAPI.getUserRole() === 'owner';
+
+        body.innerHTML = members.map(m => {
+            const roleBadge =
+                m.role === 'owner' ? '<span style="color:#fbbf24;">👑 owner</span>' :
+                m.role === 'admin' ? '<span style="color:#00d4dc;">🛡️ admin</span>' :
+                                     '<span style="color:#94a3b8;">member</span>';
+
+            // Owner can grant/revoke admin on everyone except themselves/owner
+            const roleBtn = (isOwner && m.role !== 'owner' && m.id !== myId)
+                ? `<button class="panel-action-btn" style="padding:0.2rem 0.5rem;font-size:0.72rem;"
+                     data-action="adminToggleRole('${m.id}','${m.role === 'admin' ? 'member' : 'admin'}')">
+                     ${m.role === 'admin' ? 'Revoke admin' : 'Make admin'}
+                   </button>`
+                : '';
+
+            const options = ['<option value="">— not linked —</option>']
+                .concat(roster.map(u => {
+                    const label = esc(`${u.firstName} ${u.lastName}`.trim() + (u.email ? ` (${u.email})` : ''));
+                    const sel = u.id === m.acculynxUserId ? ' selected' : '';
+                    return `<option value="${esc(u.id)}"${sel}>${label}</option>`;
+                }))
+                .join('');
+
+            const mappingCell = rosterError
+                ? `<span style="color:#94a3b8;font-size:0.75rem;">AccuLynx roster unavailable: ${esc(rosterError)}</span>`
+                : `<select class="form-input admin-map-select" data-member-id="${esc(m.id)}"
+                       style="padding:0.3rem 0.5rem;font-size:0.78rem;max-width:280px;">${options}</select>`;
+
+            return `
+            <div class="email-card" style="display:flex;flex-direction:column;gap:0.45rem;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                    <div>
+                        <b>${esc(m.displayName || m.email)}</b>
+                        <span style="color:#94a3b8;font-size:0.78rem;"> ${esc(m.email)}</span>
+                    </div>
+                    <div style="display:flex;gap:0.5rem;align-items:center;">${roleBadge}${roleBtn}</div>
+                </div>
+                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                    <span style="font-size:0.75rem;color:#94a3b8;">AccuLynx user:</span>
+                    ${mappingCell}
+                    <span class="admin-map-status" data-member-id="${esc(m.id)}" style="font-size:0.75rem;"></span>
+                </div>
+            </div>`;
+        }).join('');
+
+        // Mapping dropdowns need change events — dispatch.js only covers clicks
+        body.querySelectorAll('.admin-map-select').forEach(sel => {
+            sel.addEventListener('change', async function () {
+                const memberId = this.getAttribute('data-member-id');
+                const statusEl = body.querySelector(`.admin-map-status[data-member-id="${memberId}"]`);
+                const value = this.value || null;
+                this.disabled = true;
+                if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.style.color = '#94a3b8'; }
+                try {
+                    await AtomAPI.patch(`/orgs/members/${memberId}/acculynx`, { acculynxUserId: value });
+                    if (statusEl) { statusEl.textContent = value ? '✓ linked' : '✓ unlinked'; statusEl.style.color = '#34d399'; }
+                } catch (e) {
+                    if (statusEl) { statusEl.textContent = '⚠️ ' + (e.message || 'failed'); statusEl.style.color = '#f87171'; }
+                } finally {
+                    this.disabled = false;
+                }
+            });
+        });
+    } catch (err) {
+        s.error(`Failed to load team: ${esc(err.message)}`);
+    }
+}
+
+async function adminToggleRole(memberId, newRole) {
+    if (!AtomAPI.confirm(newRole === 'admin'
+        ? 'Grant this user admin access? They will see the Admin section and manage team access.'
+        : 'Revoke admin access for this user?')) return;
+    try {
+        await AtomAPI.patch(`/orgs/members/${memberId}/role`, { role: newRole });
+        loadAdminPanel();
+    } catch (e) {
+        alert('Role change failed: ' + (e.message || 'unknown error'));
+    }
+}
+
+async function adminCreateInvite() {
+    const out = document.getElementById('adminInviteResult');
+    if (out) { out.textContent = 'Creating…'; out.style.color = '#94a3b8'; }
+    try {
+        const invite = await AtomAPI.post('/orgs/invite', {});
+        if (out && invite && invite.code) {
+            out.style.color = '#34d399';
+            out.textContent = `Invite code: ${invite.code} (single-use — joins your company as member)`;
+        }
+    } catch (e) {
+        if (out) { out.style.color = '#f87171'; out.textContent = 'Failed: ' + (e.message || 'unknown'); }
+    }
 }
 
 // ── Inbox ──────────────────────────────────────────────────────────────────

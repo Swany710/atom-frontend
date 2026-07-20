@@ -32,6 +32,7 @@ async function handleAuthLogin() {
 }
 async function handleAuthRegister() {
     const name = document.getElementById('authRegName').value.trim();
+    const company = document.getElementById('authRegCompany').value.trim();
     const email = document.getElementById('authRegEmail').value.trim();
     const password = document.getElementById('authRegPassword').value;
     const inviteCode = document.getElementById('authRegInvite').value.trim();
@@ -42,7 +43,10 @@ async function handleAuthRegister() {
     if (password.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; return; }
     if (!inviteCode) { errEl.textContent = 'An invite code is required.'; return; }
     btn.disabled = true; btn.textContent = 'Creating account...';
-    try { await AtomAPI.register(email, password, name || undefined, inviteCode); showApp(); }
+    try {
+        await AtomAPI.register(email, password, name || undefined, inviteCode, company || undefined);
+        showApp();
+    }
     catch (e) { errEl.textContent = e.message || 'Registration failed.'; }
     finally { btn.disabled = false; btn.textContent = 'Create Account'; }
 }
@@ -59,6 +63,7 @@ function showApp() {
 }
 async function bootApp() {
     await AtomAPI.loadConfig();
+    applyRoleGating(); // show/hide admin nav based on the JWT role
     initializeWaveform();
     startWaveformAnimation();
     setupTextInput();
