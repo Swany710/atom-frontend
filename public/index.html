@@ -654,6 +654,28 @@
                         <input class="form-input" id="leadZip" type="text" placeholder="75001">
                     </div>
                 </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-top:0.5rem;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">Job Category</label>
+                        <select class="form-input" id="leadJobCategory"><option value="">—</option></select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">Work Type</label>
+                        <select class="form-input" id="leadWorkType"><option value="">—</option></select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">Lead Source</label>
+                        <select class="form-input" id="leadLeadSource"><option value="">—</option></select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">Priority</label>
+                        <select class="form-input" id="leadPriority"><option value="">Normal</option></select>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top:0.5rem;">
+                    <label class="form-label">Trade Types</label>
+                    <div id="leadTradeTypes" style="display:flex;gap:0.4rem;flex-wrap:wrap;font-size:0.8rem;color:#94a3b8;">Loading…</div>
+                </div>
                 <div class="form-group" style="margin-top:0.5rem;">
                     <label class="form-label">Notes</label>
                     <textarea class="form-textarea" id="leadNotes" style="min-height:60px;" placeholder="Roof damage, hail claim…"></textarea>

@@ -94,6 +94,7 @@ function showPanel(name) {
     if (name === 'tasks')         loadScheduledTasks();
     if (name === 'notes')         loadNotes();
     if (name === 'admin')         loadAdminPanel();
+    if (name === 'crm-lead')      loadCrmJobSettings();
 }
 
 // ── Admin: Team & Access (owner/admin only — backend enforces via RolesGuard) ──
@@ -543,6 +544,43 @@ async function loadCrmContacts() {
 
 // ── CRM: Create Lead ───────────────────────────────────────────────────────
 
+let crmJobSettingsLoaded = false;
+
+/** Populate the New Lead dropdowns from the company's AccuLynx settings. */
+async function loadCrmJobSettings() {
+    if (crmJobSettingsLoaded) return;
+    try {
+        const res = await AtomAPI.get('/integrations/crm/job-settings');
+        if (!res || !res.success || !res.data) return;
+        const s = res.data;
+
+        const fill = (id, list, defLabel) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.innerHTML = `<option value="">${defLabel || '—'}</option>` +
+                list.map(x => `<option value="${esc(x.name ?? x)}">${esc(x.name ?? x)}</option>`).join('');
+        };
+        fill('leadJobCategory', s.jobCategories);
+        fill('leadWorkType',    s.workTypes);
+        fill('leadLeadSource',  s.leadSources);
+        fill('leadPriority',    (s.priorities || []).map(p => ({ name: p })), 'Normal');
+
+        // Trade types: checkbox chips (multi-select)
+        const tt = document.getElementById('leadTradeTypes');
+        if (tt) {
+            tt.innerHTML = (s.tradeTypes || []).map(t => `
+                <label style="display:flex;align-items:center;gap:0.25rem;cursor:pointer;
+                              padding:0.2rem 0.55rem;border:1px solid rgba(255,255,255,0.12);
+                              border-radius:99px;">
+                    <input type="checkbox" class="lead-trade-cb" value="${esc(t.name)}"> ${esc(t.name)}
+                </label>`).join('');
+        }
+        crmJobSettingsLoaded = true;
+    } catch (e) {
+        console.warn('job-settings load failed:', e.message);
+    }
+}
+
 async function createCrmLead() {
     const status    = document.getElementById('leadStatus');
     const btn       = document.getElementById('leadSaveBtn');
@@ -556,6 +594,11 @@ async function createCrmLead() {
     const stateVal  = document.getElementById('leadState')?.value?.trim() || '';
     const zip       = document.getElementById('leadZip')?.value?.trim() || '';
     const notes     = document.getElementById('leadNotes').value.trim();
+    const jobCategory = document.getElementById('leadJobCategory')?.value || '';
+    const workType    = document.getElementById('leadWorkType')?.value || '';
+    const leadSource  = document.getElementById('leadLeadSource')?.value || '';
+    const priority    = document.getElementById('leadPriority')?.value || '';
+    const tradeTypes  = Array.from(document.querySelectorAll('.lead-trade-cb:checked')).map(cb => cb.value);
 
     if (!firstName) {
         status.textContent   = 'Customer name is required.';
@@ -577,18 +620,27 @@ async function createCrmLead() {
             city,
             state: stateVal,
             zip,
-            source: 'Atom Frontend',
+            source: leadSource || 'Atom Frontend',
             notes,
+            ...(jobCategory && { jobCategory }),
+            ...(workType    && { workType }),
+            ...(leadSource  && { leadSource }),
+            ...(priority    && { priority }),
+            ...(tradeTypes.length && { tradeTypes }),
         });
         throwIfBackendError(data);
-        const lead = data.data || data;
-        status.textContent   = `✅ Lead created: ${esc(lead.jobName || lead.name || data.message || name)}`;
+        status.textContent   = `✅ ${esc(data.message || 'Lead created: ' + name)}`;
         status.className     = 'panel-msg ok';
         status.style.display = 'block';
         ['leadFirstName', 'leadLastName', 'leadEmail', 'leadPhone', 'leadAddress', 'leadCity', 'leadState', 'leadZip', 'leadNotes'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';
         });
+        ['leadJobCategory', 'leadWorkType', 'leadLeadSource', 'leadPriority'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.selectedIndex = 0;
+        });
+        document.querySelectorAll('.lead-trade-cb:checked').forEach(cb => { cb.checked = false; });
     } catch (err) {
         status.textContent   = '❌ ' + (err.message || 'Create failed');
         status.className     = 'panel-msg err';
