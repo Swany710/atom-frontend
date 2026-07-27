@@ -63,6 +63,26 @@ let wavePhase  = 0;
 let waveEnergy = 0;
 let waveformAnimationId = null;
 
+// ── Fixed silhouette ──────────────────────────────────────────────────────────
+// Lobe positions traced off the reference art, left → right. These NEVER move:
+//   c     centre, 0..1 across the canvas
+//   w     half-width (fatness)
+//   h     resting height, 0..1
+//   rate  how fast this lobe bounces (rad/sec)
+//   phase offset so they don't all pump in unison
+const WAVE_LOBES = [
+    { c: 0.170, w: 0.060, h: 0.38, rate: 2.7, phase: 0.0 },
+    { c: 0.325, w: 0.058, h: 0.68, rate: 3.4, phase: 1.7 },
+    { c: 0.500, w: 0.075, h: 1.00, rate: 2.2, phase: 3.1 },
+    { c: 0.685, w: 0.058, h: 0.60, rate: 3.9, phase: 0.8 },
+    { c: 0.820, w: 0.048, h: 0.28, rate: 3.1, phase: 4.4 },
+    // broad low body that ties the lobes together instead of leaving gaps
+    { c: 0.500, w: 0.320, h: 0.12, rate: 1.4, phase: 2.3 },
+];
+
+/** How far the lobes bounce (fraction of resting height) at full energy. */
+const WAVE_BOUNCE = 0.30;
+
 const WAVE_COLORS = [
     { pos: 0,    r: 0,   g: 212, b: 220 },
     { pos: 0.25, r: 60,  g: 100, b: 255 },
@@ -111,20 +131,20 @@ function drawWave() {
     let targetEnergy, phaseStep, breathe = 0;
     if (isSpeakingWave) {
         targetEnergy = 0.55 + getAudioEnergy() * 0.45;
-        phaseStep    = 0.055;
+        phaseStep    = 0.020;   // lobes bounce briskly
     } else if (isRecording) {
         // Listening: a soft floor plus a slow breath so it never sits still,
         // nudged by mic level so the user sees it hearing them.
-        breathe      = Math.sin(Date.now() / 900) * 0.05;
-        targetEnergy = 0.26 + breathe + getAudioEnergy() * 0.30;
-        phaseStep    = 0.016;
+        breathe      = Math.sin(Date.now() / 900) * 0.04;
+        targetEnergy = 0.30 + breathe + getAudioEnergy() * 0.26;
+        phaseStep    = 0.006;   // slow, gentle
     } else if (isProcessingWave) {
         targetEnergy = 0.42 + Math.sin(Date.now() / 380) * 0.06;
-        phaseStep    = 0.030;
+        phaseStep    = 0.012;
     } else {
         breathe      = Math.sin(Date.now() / 1500) * 0.03;
-        targetEnergy = 0.17 + breathe;
-        phaseStep    = 0.008;
+        targetEnergy = 0.24 + breathe;
+        phaseStep    = 0.003;   // barely moving
     }
 
     // Rise fast when Atom starts talking, settle slowly when it stops.
@@ -134,20 +154,35 @@ function drawWave() {
     wavePhase  += phaseStep;
 
     // ── Shape ────────────────────────────────────────────────────────────
-    // A few FAT, well-separated lobes (not a dense ripple), mirrored top and
-    // bottom, tapering to a sharp point at each end. env^1.45 is what pulls
-    // the tips into points instead of letting the body run to the edges.
-    const N = 256, maxAmp = cy * 0.94 * waveEnergy;
+    // The silhouette is FIXED — lobes sit at set positions and only pulse in
+    // place. (Putting the phase inside the spatial term is what made the old
+    // wave crawl sideways; here time only scales each lobe's height.)
+    // wavePhase is a clock that ticks FASTER when speaking and slower when
+    // listening — so the same silhouette bounces hard or barely stirs.
+    const clock = wavePhase;
+    const bump  = WAVE_BOUNCE * waveEnergy;   // how hard the lobes bounce
+
+    const N = 256, maxAmp = cy * 0.96 * waveEnergy;
     const ampArr = new Float32Array(N + 1);
+
+    // Sides bounce outward/inward a little without the body sliding.
+    const stretch = 1 + 0.045 * Math.sin(clock * 1.6) * waveEnergy;
+
     for (let i = 0; i <= N; i++) {
         const t = i / N;
-        const env = Math.pow(Math.sin(t * Math.PI), 1.45);
-        ampArr[i] = (
-              Math.sin(t * Math.PI * 1.35 + wavePhase * 0.55 + 2.2) * 0.46
-            + Math.sin(t * Math.PI * 2.30 + wavePhase)              * 0.42
-            + Math.sin(t * Math.PI * 3.70 + wavePhase * 1.22 + 0.9) * 0.20
-            + Math.sin(t * Math.PI * 5.10 + wavePhase * 0.68 + 1.8) * 0.09
-        ) * maxAmp * env;
+        // map through the stretch around the centre so the TIPS move, not the body
+        const ts = 0.5 + (t - 0.5) / stretch;
+        let v = 0;
+        for (let k = 0; k < WAVE_LOBES.length; k++) {
+            const L = WAVE_LOBES[k];
+            const d = (ts - L.c) / L.w;
+            // each lobe bounces on its own clock → the group ripples without travelling
+            const pulse = 1 + bump * Math.sin(clock * L.rate + L.phase);
+            v += L.h * pulse * Math.exp(-d * d);
+        }
+        // needle tips: a sliver of amplitude that survives out to both edges
+        const taper = Math.pow(Math.sin(Math.max(0, Math.min(1, ts)) * Math.PI), 0.85);
+        ampArr[i] = (v * 0.92 + 0.05 * taper) * taper * maxAmp;
     }
 
     const upper = [], lower = [];
