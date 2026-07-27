@@ -103,25 +103,50 @@ function drawWave() {
     waveCtx.clearRect(0, 0, waveW, waveH);
     const cy = waveH / 2;
 
-    let targetEnergy;
-    if (isRecording)        targetEnergy = 0.38 + getAudioEnergy() * 0.62;
-    else if (isSpeakingWave)  targetEnergy = 0.45 + getAudioEnergy() * 0.55;
-    else if (isProcessingWave) targetEnergy = 0.54;
-    else                    targetEnergy = 0.22;
+    // ── Motion states ────────────────────────────────────────────────────
+    // speaking  — big, fast, driven by the actual audio
+    // listening — alive but calm: a slow gentle roll, never frozen
+    // thinking  — mid energy, steady pulse
+    // idle      — barely breathing
+    let targetEnergy, phaseStep, breathe = 0;
+    if (isSpeakingWave) {
+        targetEnergy = 0.55 + getAudioEnergy() * 0.45;
+        phaseStep    = 0.055;
+    } else if (isRecording) {
+        // Listening: a soft floor plus a slow breath so it never sits still,
+        // nudged by mic level so the user sees it hearing them.
+        breathe      = Math.sin(Date.now() / 900) * 0.05;
+        targetEnergy = 0.26 + breathe + getAudioEnergy() * 0.30;
+        phaseStep    = 0.016;
+    } else if (isProcessingWave) {
+        targetEnergy = 0.42 + Math.sin(Date.now() / 380) * 0.06;
+        phaseStep    = 0.030;
+    } else {
+        breathe      = Math.sin(Date.now() / 1500) * 0.03;
+        targetEnergy = 0.17 + breathe;
+        phaseStep    = 0.008;
+    }
 
-    waveEnergy += (targetEnergy - waveEnergy) * 0.04;
+    // Rise fast when Atom starts talking, settle slowly when it stops.
+    const attack = targetEnergy > waveEnergy ? 0.16 : 0.05;
+    waveEnergy += (targetEnergy - waveEnergy) * attack;
     waveEnergy  = Math.max(0.01, Math.min(1, waveEnergy));
-    wavePhase  += isRecording ? 0.052 : isSpeakingWave ? 0.042 : isProcessingWave ? 0.03 : 0.012;
+    wavePhase  += phaseStep;
 
-    const N = 256, maxAmp = cy * 0.90 * waveEnergy;
+    // ── Shape ────────────────────────────────────────────────────────────
+    // A few FAT, well-separated lobes (not a dense ripple), mirrored top and
+    // bottom, tapering to a sharp point at each end. env^1.45 is what pulls
+    // the tips into points instead of letting the body run to the edges.
+    const N = 256, maxAmp = cy * 0.94 * waveEnergy;
     const ampArr = new Float32Array(N + 1);
     for (let i = 0; i <= N; i++) {
-        const t = i / N, env = Math.pow(Math.sin(t * Math.PI), 0.55);
+        const t = i / N;
+        const env = Math.pow(Math.sin(t * Math.PI), 1.45);
         ampArr[i] = (
-              Math.sin(t * Math.PI * 2.15 + wavePhase) * 0.40
-            + Math.sin(t * Math.PI * 3.60 + wavePhase * 1.18 + 0.9) * 0.26
-            + Math.sin(t * Math.PI * 5.40 + wavePhase * 0.73 + 1.8) * 0.16
-            + Math.sin(t * Math.PI * 1.55 + wavePhase * 0.41 + 3.1) * 0.18
+              Math.sin(t * Math.PI * 1.35 + wavePhase * 0.55 + 2.2) * 0.46
+            + Math.sin(t * Math.PI * 2.30 + wavePhase)              * 0.42
+            + Math.sin(t * Math.PI * 3.70 + wavePhase * 1.22 + 0.9) * 0.20
+            + Math.sin(t * Math.PI * 5.10 + wavePhase * 0.68 + 1.8) * 0.09
         ) * maxAmp * env;
     }
 
@@ -136,12 +161,14 @@ function drawWave() {
     .forEach(({ scale, alpha }) => {
         const u = upper.map(p => ({ x: p.x, y: cy + (p.y - cy) * scale }));
         const l = lower.map(p => ({ x: p.x, y: cy + (p.y - cy) * scale }));
+        // teal → indigo → violet → crimson, left to right
         const grad = waveCtx.createLinearGradient(0, 0, waveW, 0);
-        grad.addColorStop(0,    `rgba(0,212,220,${alpha})`);
-        grad.addColorStop(0.25, `rgba(50,90,245,${alpha})`);
-        grad.addColorStop(0.55, `rgba(160,60,235,${alpha})`);
-        grad.addColorStop(0.80, `rgba(195,45,205,${alpha})`);
-        grad.addColorStop(1,    `rgba(232,48,128,${alpha})`);
+        grad.addColorStop(0,    `rgba(34,214,199,${alpha})`);
+        grad.addColorStop(0.22, `rgba(38,190,205,${alpha})`);
+        grad.addColorStop(0.45, `rgba(72,96,190,${alpha})`);
+        grad.addColorStop(0.62, `rgba(112,66,168,${alpha})`);
+        grad.addColorStop(0.82, `rgba(176,42,120,${alpha})`);
+        grad.addColorStop(1,    `rgba(196,32,92,${alpha})`);
         waveCtx.beginPath();
         waveCtx.moveTo(u[0].x, u[0].y);
         for (let i = 1; i < u.length - 1; i++) {
