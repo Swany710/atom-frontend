@@ -24,8 +24,20 @@ let isRealtimeActive  = false;  // true while WS session is open
 let isRecording       = false;  // true while mic is live
 let isSpeakingWave    = false;  // true while Atom is speaking
 let isProcessingWave  = false;  // true while waiting for response
-let voiceResponseOn   = true;
+let voiceResponseOn   = true;   // master mute — false silences ALL audio output
 let currentAudio      = null;   // legacy Audio element (fallback)
+
+// ── Read-back policy ──────────────────────────────────────────────────────────
+//
+// Atom does NOT speak typed responses by default. Audio only happens when:
+//   1. the user is in LIVE voice mode (a spoken conversation — Atom answers aloud)
+//   2. the user taps the 🔊 button on a specific message (readMessageAloud)
+//   3. "Always read" is switched on (alwaysReadOn) — then every response is spoken
+// The master mute (voiceResponseOn) still overrides all three.
+let alwaysReadOn = false;
+try {
+    alwaysReadOn = localStorage.getItem('atom.alwaysRead') === '1';
+} catch (e) { /* storage blocked — default off */ }
 let pendingAudioChunks = [];    // realtime audio delta buffers
 let isPlayingRealtime  = false;
 let realtimeSessionId  = null;
@@ -672,7 +684,8 @@ async function processLegacyAudio() {
         addMessageToConversation('user',      `"${result.transcription}"`);
         addMessageToConversation('assistant', result.message);
         pinResponseArea();
-        playResponseAudio(result.message);
+        // The user spoke into the mic (legacy fallback for live mode), so answer aloud.
+        maybeSpeakResponse(result.message, 'live');
         updateStatus('Ready.', 'success');
     } catch(err) {
         isProcessingWave = false;
@@ -695,6 +708,12 @@ async function processLegacyAudio() {
 
 // ── TTS playback (legacy / text responses) ────────────────────────────────────
 
+/**
+ * Speak `text` through the backend TTS endpoint.
+ * Always plays when called directly — callers decide whether speaking is
+ * allowed (see maybeSpeakResponse / readMessageAloud). The master mute still
+ * wins so the user always has one switch that silences everything.
+ */
 async function playResponseAudio(text) {
     if (!voiceResponseOn || !text?.trim()) return;
     stopAllPlayback();
@@ -716,6 +735,51 @@ async function playResponseAudio(text) {
 }
 
 function stopAudioPlayback() { stopAllPlayback(); }
+
+/**
+ * Called for every Atom response. Speaks it ONLY when the user is in a live
+ * voice conversation or has switched "Always read" on. Typed chat stays silent.
+ *
+ * @param {string} text    the response text
+ * @param {string} source  'text' (typed / dictated) | 'live' (spoken turn)
+ */
+function maybeSpeakResponse(text, source = 'text') {
+    if (!text?.trim()) return;
+    const inLiveVoice = source === 'live' || isRealtimeActive;
+    if (!inLiveVoice && !alwaysReadOn) return;   // silent by default
+    playResponseAudio(text);
+}
+
+/** 🔊 button on a single message — explicit request, ignores the Always-read setting. */
+function readMessageAloud(msgIndex) {
+    const message = (window.conversationMessages || [])[msgIndex];
+    if (!message?.content) return;
+    if (!voiceResponseOn) {
+        updateStatus('Audio is muted — unmute to hear responses.', 'info');
+        return;
+    }
+    playResponseAudio(message.content);
+}
+
+/** Toggle "read every response aloud". Persisted so it survives a reload. */
+function toggleAlwaysRead() {
+    alwaysReadOn = !alwaysReadOn;
+    try { localStorage.setItem('atom.alwaysRead', alwaysReadOn ? '1' : '0'); } catch (e) {}
+    updateAlwaysReadUI();
+    if (!alwaysReadOn) stopAllPlayback();
+}
+
+function updateAlwaysReadUI() {
+    const btn = document.getElementById('alwaysReadBtn');
+    if (!btn) return;
+    btn.innerHTML         = alwaysReadOn ? '&#x1F501; Always read' : '&#x1F446; Read on tap';
+    btn.dataset.tip       = alwaysReadOn
+        ? 'Every response is read aloud — click for tap-to-read only'
+        : 'Responses stay silent — tap 🔊 on a message to hear it, or click to always read';
+    btn.style.color       = alwaysReadOn ? '#00d4dc' : '#64748b';
+    btn.style.borderColor = alwaysReadOn ? 'rgba(0,212,220,0.35)' : 'rgba(255,255,255,0.15)';
+    btn.setAttribute('aria-pressed', alwaysReadOn ? 'true' : 'false');
+}
 
 function toggleVoiceResponse() {
     voiceResponseOn = !voiceResponseOn;

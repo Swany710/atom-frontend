@@ -404,6 +404,27 @@
         .user-message   .message-sender { color: rgba(0,212,220,0.55); }
         .assistant-message .message-sender { color: rgba(192,68,232,0.55); }
 
+        /* Tap-to-read speaker on each Atom message */
+        .msg-speak-btn {
+            margin-left: 0.45rem;
+            padding: 0 0.25rem;
+            font-size: 0.8rem;
+            line-height: 1;
+            background: transparent;
+            border: none;
+            border-radius: 4px;
+            color: rgba(230,230,240,0.35);
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.15s, color 0.15s;
+        }
+        .assistant-message:hover .msg-speak-btn,
+        .msg-speak-btn:focus-visible { opacity: 1; }
+        .msg-speak-btn:hover { color: #00d4dc; }
+        @media (hover: none) {
+            .msg-speak-btn { opacity: 0.7; }
+        }
+
         .message-content {
             color: rgba(230,230,240,0.85);
             line-height: 1.55;

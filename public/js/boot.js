@@ -68,6 +68,8 @@ async function bootApp() {
     startWaveformAnimation();
     setupTextInput();
     checkBackendStatus();
+    // Reflect the persisted "Always read" preference on the toggle
+    if (typeof updateAlwaysReadUI === 'function') updateAlwaysReadUI();
     updateConversationDisplay();
     // Click outside response area collapses it — but interacting with the
     // composer (text box, Send, dictate, mode icons) must NOT close the chat.
@@ -75,7 +77,7 @@ async function bootApp() {
         const responseArea = document.getElementById('responseArea');
         if (!responseArea || !responseArea.classList.contains('pinned')) return;
         if (e.target.closest && e.target.closest(
-            '.response-area, .main-text-bar, .mode-icons, #vttButtonContainer, #muteBtn, .chat-hover-zone'
+            '.response-area, .main-text-bar, .mode-icons, #vttButtonContainer, #muteBtn, #alwaysReadBtn, .chat-hover-zone'
         )) return;
         unpinResponseArea();
     });

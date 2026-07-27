@@ -62,7 +62,9 @@ async function processTextCommand(text) {
         addMessageToConversation('assistant', result.message);
         updateStatus('Response generated successfully!', 'success');
         pinResponseArea();
-        window.playResponseAudio && playResponseAudio(result.message);
+        // Typed responses are SILENT unless the user turned on "Always read".
+        // Tapping 🔊 on a message reads that one aloud on demand.
+        window.maybeSpeakResponse && maybeSpeakResponse(result.message, 'text');
     } catch (error) {
         console.error('Error processing text:', error);
         updateStatus('Error: ' + error.message, 'error');
@@ -114,10 +116,16 @@ function updateConversationDisplay() {
         } else {
             const isConfirmation = message.content.includes('Shall I go ahead') ||
                                    message.content.includes('Shall I proceed');
+            // Tap-to-read: Atom never speaks a typed response on its own, so every
+            // Atom message carries a speaker button that reads that message aloud.
+            const speakBtn = `<button class="msg-speak-btn" data-action="readMessageAloud(${idx})"
+                                      aria-label="Read this message aloud"
+                                      data-tip="Read this aloud">&#x1F50A;</button>`;
+
             if (isConfirmation && message.awaitingConfirmation !== false) {
                 html += `
                     <div class="conversation-message assistant-message confirm-card" id="confirm-${idx}">
-                        <div class="message-sender">Atom — Action needed</div>
+                        <div class="message-sender">Atom — Action needed${speakBtn}</div>
                         <div class="message-content confirm-body">${safeContent.replace(/\n/g, '<br>')}</div>
                         <div class="confirm-buttons">
                             <button class="confirm-yes-btn" data-action="confirmAction(${idx})">Confirm</button>
@@ -127,7 +135,7 @@ function updateConversationDisplay() {
             } else {
                 html += `
                     <div class="conversation-message assistant-message">
-                        <div class="message-sender">Atom</div>
+                        <div class="message-sender">Atom${speakBtn}</div>
                         <div class="message-content">${safeContent.replace(/\n/g, '<br>')}</div>
                     </div>`;
             }

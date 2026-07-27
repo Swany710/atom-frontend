@@ -352,8 +352,23 @@
         <div class="main-content">
             <div class="voice-container">
 
-                <!-- Audio response toggle ─ always visible in all modes -->
-                <div style="text-align:right;padding-right:6px;margin-bottom:0.25rem;">
+                <!-- Read-back controls ─ always visible in all modes.
+                     alwaysReadBtn: read EVERY response aloud (off by default —
+                                    typed responses are silent; tap 🔊 on a message).
+                     muteBtn:       master mute, silences live voice too. -->
+                <div style="text-align:right;padding-right:6px;margin-bottom:0.25rem;
+                            display:flex;gap:0.4rem;justify-content:flex-end;">
+                    <button id="alwaysReadBtn"
+                            data-action="toggleAlwaysRead()"
+                            class="tip-left"
+                            aria-pressed="false"
+                            data-tip="Responses stay silent — tap 🔊 on a message to hear it, or click to always read"
+                            style="font-size:0.72rem;padding:0.18rem 0.7rem;border-radius:20px;
+                                   background:transparent;border:1px solid rgba(255,255,255,0.15);
+                                   color:#64748b;cursor:pointer;font-family:inherit;
+                                   transition:color 0.18s,border-color 0.18s;">
+                        &#x1F446; Read on tap
+                    </button>
                     <button id="muteBtn"
                             data-action="toggleVoiceResponse()"
                             class="tip-left"
