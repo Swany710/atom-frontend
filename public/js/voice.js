@@ -273,10 +273,20 @@ function base64Pcm16ToFloat32(b64) {
 let playbackQueue      = [];   // Float32Array chunks queued for playback
 let playbackScheduled  = 0;    // next start time in AudioContext clock
 let playbackStarted    = false;
+// Live AudioBufferSourceNodes. Without these handles there is no way to stop
+// audio that has already been scheduled — which is why barge-in and mute used
+// to leave Atom talking over the user.
+let liveSources        = [];
+
+/** Restore the mic→waveform gain. Safe to call any time. */
+function restoreMicGain() {
+    if (window._micGain) window._micGain.gain.value = 1;
+}
 
 function scheduleAudioChunk(float32) {
     const ctx = getAudioCtx();
-    // Mute mic-to-VAD path while Atom is speaking to prevent echo
+    // Duck the mic→waveform tap while Atom speaks so its own voice doesn't
+    // drive the "listening" animation.
     if (window._micGain) window._micGain.gain.value = 0;
     if (!playbackStarted || playbackScheduled < ctx.currentTime) {
         playbackScheduled = ctx.currentTime + 0.05; // 50ms initial buffer
@@ -290,10 +300,13 @@ function scheduleAudioChunk(float32) {
     src.start(playbackScheduled);
     playbackScheduled += buf.duration;
     isSpeakingWave = true;
+    liveSources.push(src);
     src.onended = () => {
+        liveSources = liveSources.filter(s => s !== src);
         // If nothing else scheduled, mark as done
         if (playbackScheduled <= ctx.currentTime + 0.05) {
             isSpeakingWave = false;
+            restoreMicGain();
         }
     };
 }
@@ -303,12 +316,14 @@ function stopAllPlayback() {
     playbackStarted   = false;
     playbackScheduled = 0;
     if (currentAudio) { try { currentAudio.pause(); } catch(e){} currentAudio = null; }
-    // Stop any in-flight Web Audio nodes by suspending + resuming
-    if (audioCtx && audioCtx.state === 'running') {
-        // Don't close — just drain the queue
-        playbackScheduled = 0;
-        playbackStarted   = false;
-    }
+    // Actually kill scheduled realtime audio — this is what makes interrupting
+    // Atom (and the mute button) take effect immediately instead of after the
+    // already-queued buffers finish playing.
+    liveSources.forEach(s => { try { s.onended = null; s.stop(); } catch (e) {} });
+    liveSources = [];
+    // Never leave the mic tap ducked, or the listening waveform goes flat for
+    // the rest of the session.
+    restoreMicGain();
 }
 
 // ── Realtime WebSocket session ────────────────────────────────────────────────
@@ -790,10 +805,18 @@ async function playResponseAudio(text) {
         src.connect(analyser);
         isSpeakingWave = true;
         currentAudio.onended = () => {
-    if (window._micGain) window._micGain.gain.value = 1; isSpeakingWave = false; URL.revokeObjectURL(url); };
+            restoreMicGain();
+            isSpeakingWave = false;
+            URL.revokeObjectURL(url);
+        };
         if (window._micGain) window._micGain.gain.value = 0;
-  await currentAudio.play();
-    } catch(e) { isSpeakingWave = false; }
+        await currentAudio.play();
+    } catch (e) {
+        // play() rejects under autoplay policy — without this the mic tap would
+        // stay ducked forever and the listening waveform would sit flat.
+        isSpeakingWave = false;
+        restoreMicGain();
+    }
 }
 
 function stopAudioPlayback() { stopAllPlayback(); }

@@ -114,8 +114,10 @@ function updateConversationDisplay() {
                     <div class="message-content">${safeContent}</div>
                 </div>`;
         } else {
-            const isConfirmation = message.content.includes('Shall I go ahead') ||
-                                   message.content.includes('Shall I proceed');
+            // Use cleanContent, not message.content — a response with no
+            // message field would throw here and blank the whole thread.
+            const isConfirmation = cleanContent.includes('Shall I go ahead') ||
+                                   cleanContent.includes('Shall I proceed');
             // Tap-to-read: Atom never speaks a typed response on its own, so every
             // Atom message carries a speaker button that reads that message aloud.
             const speakBtn = `<button class="msg-speak-btn" data-action="readMessageAloud(${idx})"

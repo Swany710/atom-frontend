@@ -64,8 +64,10 @@ function showApp() {
 async function bootApp() {
     await AtomAPI.loadConfig();
     applyRoleGating(); // show/hide admin nav based on the JWT role
+    // initializeWaveform() already starts the animation loop — calling
+    // startWaveformAnimation() again here ran a SECOND rAF loop, drawing twice
+    // per frame and advancing the animation clock at double speed.
     initializeWaveform();
-    startWaveformAnimation();
     setupTextInput();
     checkBackendStatus();
     // Reflect the persisted "Always read" preference on the toggle
