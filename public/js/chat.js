@@ -187,7 +187,7 @@ function setInputMode(mode) {
         if (vttContainer)  vttContainer.style.display  = 'none';
         if (statusText)    statusText.style.display     = 'none';
         // Stop live voice if running
-        if (typeof cleanupRealtime === 'function' && isRealtimeActive) cleanupRealtime();
+        if (typeof stopLiveVoice === 'function' && isLiveVoiceActive) stopLiveVoice();
         // Stop VTT if running
         if (typeof stopVoiceToText === 'function' && isVttActive) stopVoiceToText();
 
@@ -197,7 +197,7 @@ function setInputMode(mode) {
         if (vttContainer)  vttContainer.style.display  = '';
         if (statusText)    statusText.style.display     = '';
         // Stop live voice if running
-        if (typeof cleanupRealtime === 'function' && isRealtimeActive) cleanupRealtime();
+        if (typeof stopLiveVoice === 'function' && isLiveVoiceActive) stopLiveVoice();
         updateStatus('Click "Dictate" to speak — your words appear in the text box below.', 'info');
     }
 }

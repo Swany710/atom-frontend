@@ -1,31 +1,33 @@
 /**
- * voice.js — OpenAI Realtime API voice interface for Atom.
+ * voice.js — voice interface for Atom.
  *
- * Architecture:
- *   1. POST /ai/realtime-token  → backend vends ephemeral OpenAI client secret
- *   2. WebSocket to wss://api.openai.com/v1/realtime with that token
- *   3. Browser mic → PCM16 chunks → WebSocket → OpenAI (server VAD detects turns)
- *   4. OpenAI audio delta events → Web Audio API → speaker
- *   5. After each turn: sync user transcript + Atom response to backend memory
- *      so switching to text mode carries the full conversation context.
- *   6. Interruptions: any new mic input during playback sends session.update
- *      to cancel the current response immediately
+ * Architecture (hands-free live voice):
+ *   1. Mic opens once per session; a silent analyser tap watches the level.
+ *   2. Energy-based VAD decides when you started and stopped talking.
+ *   3. The recorded turn is POSTed to /ai/voice, which runs
+ *        ElevenLabs Scribe (speech → text)
+ *        → Claude with the full tool set (email, calendar, CRM, KB, notes…)
+ *        → { transcription, message }
+ *   4. The reply is spoken via /ai/speak (ElevenLabs TTS), then the mic reopens.
+ *   5. Talking over Atom cuts him off (barge-in) and starts your next turn.
  *
- * Falls back to legacy REST pipeline if WebSocket fails.
+ * Provider split — do not cross these lines:
+ *   speech in/out   → ElevenLabs
+ *   reasoning+tools → Anthropic (Claude)
+ *   embeddings      → OpenAI
+ *
+ * Tap-to-talk (startRecording/stopRecording) remains as a manual fallback when
+ * the hands-free session can't start.
  */
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let realtimeWs        = null;   // WebSocket to OpenAI Realtime
 let micStream         = null;   // MediaStream from getUserMedia
-let micProcessor      = null;   // ScriptProcessorNode capturing PCM
 let audioCtx          = null;   // Single shared AudioContext
-let playbackNode      = null;   // AudioBufferSourceNode for TTS playback
-let isRealtimeActive  = false;  // true while WS session is open
 let isRecording       = false;  // true while mic is live
 let isSpeakingWave    = false;  // true while Atom is speaking
 let isProcessingWave  = false;  // true while waiting for response
 let voiceResponseOn   = true;   // master mute — false silences ALL audio output
-let currentAudio      = null;   // legacy Audio element (fallback)
+let currentAudio      = null;   // Audio element used for spoken replies
 
 // ── Read-back policy ──────────────────────────────────────────────────────────
 //
@@ -38,15 +40,8 @@ let alwaysReadOn = false;
 try {
     alwaysReadOn = localStorage.getItem('atom.alwaysRead') === '1';
 } catch (e) { /* storage blocked — default off */ }
-let pendingAudioChunks = [];    // realtime audio delta buffers
-let isPlayingRealtime  = false;
-let realtimeSessionId  = null;
-let responseBuffer     = '';    // accumulates transcript deltas
 
-// Per-turn transcript tracking (for backend sync)
-let currentUserTranscript = '';   // user's speech for the current realtime turn
-
-// ── Legacy recording state (fallback) ────────────────────────────────────────
+// ── Tap-to-talk recording state (manual fallback) ────────────────────────────
 let mediaRecorder    = null;
 let audioChunks      = [];
 let recordedMimeType = 'audio/webm';
@@ -58,7 +53,8 @@ let vttFinalBuffer = '';   // accumulated finalized dictation text
 
 // ── Waveform ──────────────────────────────────────────────────────────────────
 let waveCanvas, waveCtx, waveW, waveH;
-let analyser, audioDataArray;
+let analyser, audioDataArray;        // playback tap  → speakers
+let micAnalyser, micDataArray;       // mic tap       → silent (VAD + waveform)
 let wavePhase  = 0;
 let waveEnergy = 0;
 let waveformAnimationId = null;
@@ -111,11 +107,32 @@ function resizeWaveCanvas() {
     waveH = rect.height;
 }
 
-function getAudioEnergy() {
+/** Normalised 0..1 level from the MIC tap. Drives turn detection and barge-in. */
+function getMicEnergy() {
+    if (!micAnalyser || !micDataArray) return 0;
+    micAnalyser.getByteFrequencyData(micDataArray);
+    let sum = 0;
+    for (let i = 0; i < micDataArray.length; i++) sum += micDataArray[i];
+    return (sum / micDataArray.length) / 255;
+}
+
+/** Normalised 0..1 level from the PLAYBACK tap. */
+function getPlaybackEnergy() {
     if (!analyser || !audioDataArray) return 0;
     analyser.getByteFrequencyData(audioDataArray);
-    const sum = audioDataArray.reduce((a, b) => a + b, 0);
+    let sum = 0;
+    for (let i = 0; i < audioDataArray.length; i++) sum += audioDataArray[i];
     return (sum / audioDataArray.length) / 255;
+}
+
+/**
+ * Level for the waveform. Reads whichever tap is meaningful right now, so the
+ * animation reacts to Atom's voice while speaking and to yours while listening.
+ */
+function getAudioEnergy() {
+    if (isSpeakingWave) return getPlaybackEnergy();
+    if (isRecording || isLiveVoiceActive) return getMicEnergy();
+    return getPlaybackEnergy();
 }
 
 function drawWave() {
@@ -232,346 +249,385 @@ function startWaveformAnimation() {
 function getAudioCtx() {
     if (!audioCtx || audioCtx.state === 'closed') {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+
+        // Playback analyser — drives the waveform while Atom speaks, and is the
+        // node everything audible routes through on its way to the speakers.
         analyser = audioCtx.createAnalyser();
         analyser.fftSize = 256;
         analyser.smoothingTimeConstant = 0.8;
         audioDataArray = new Uint8Array(analyser.frequencyBinCount);
         analyser.connect(audioCtx.destination);
+
+        // Mic analyser — deliberately NOT connected to destination.
+        //
+        // The mic used to be wired into the playback analyser, which routes to
+        // the speakers: every word you said was played back at you through your
+        // own output. Echo cancellation masked it, but it was live feedback and
+        // it polluted turn detection. This is a separate, silent tap.
+        micAnalyser = audioCtx.createAnalyser();
+        micAnalyser.fftSize = 512;
+        micAnalyser.smoothingTimeConstant = 0.6;
+        micDataArray = new Uint8Array(micAnalyser.frequencyBinCount);
     }
     if (audioCtx.state === 'suspended') audioCtx.resume();
     return audioCtx;
 }
 
-// ── PCM helpers ───────────────────────────────────────────────────────────────
-
-/** Float32 → Int16 PCM, base64 encoded — what OpenAI Realtime expects */
-function float32ToBase64Pcm16(float32Array) {
-    const buf = new Int16Array(float32Array.length);
-    for (let i = 0; i < float32Array.length; i++) {
-        const s = Math.max(-1, Math.min(1, float32Array[i]));
-        buf[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-    }
-    const bytes = new Uint8Array(buf.buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-    return btoa(binary);
-}
-
-/** base64 PCM16 → Float32Array → AudioBuffer for Web Audio playback */
-function base64Pcm16ToFloat32(b64) {
-    const binary = atob(b64);
-    const bytes  = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const int16  = new Int16Array(bytes.buffer);
-    const float  = new Float32Array(int16.length);
-    for (let i = 0; i < int16.length; i++) float[i] = int16[i] / 32768;
-    return float;
-}
-
-// ── Realtime audio playback queue ─────────────────────────────────────────────
-
-let playbackQueue      = [];   // Float32Array chunks queued for playback
-let playbackScheduled  = 0;    // next start time in AudioContext clock
-let playbackStarted    = false;
-// Live AudioBufferSourceNodes. Without these handles there is no way to stop
-// audio that has already been scheduled — which is why barge-in and mute used
-// to leave Atom talking over the user.
-let liveSources        = [];
+// ── Playback control ──────────────────────────────────────────────────────────
 
 /** Restore the mic→waveform gain. Safe to call any time. */
 function restoreMicGain() {
     if (window._micGain) window._micGain.gain.value = 1;
 }
 
-function scheduleAudioChunk(float32) {
-    const ctx = getAudioCtx();
-    // Duck the mic→waveform tap while Atom speaks so its own voice doesn't
-    // drive the "listening" animation.
-    if (window._micGain) window._micGain.gain.value = 0;
-    if (!playbackStarted || playbackScheduled < ctx.currentTime) {
-        playbackScheduled = ctx.currentTime + 0.05; // 50ms initial buffer
-        playbackStarted   = true;
-    }
-    const buf = ctx.createBuffer(1, float32.length, 24000);
-    buf.copyToChannel(float32, 0);
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(analyser);
-    src.start(playbackScheduled);
-    playbackScheduled += buf.duration;
-    isSpeakingWave = true;
-    liveSources.push(src);
-    src.onended = () => {
-        liveSources = liveSources.filter(s => s !== src);
-        // If nothing else scheduled, mark as done
-        if (playbackScheduled <= ctx.currentTime + 0.05) {
-            isSpeakingWave = false;
-            restoreMicGain();
-        }
-    };
-}
-
+/**
+ * Stop whatever Atom is saying, immediately.
+ *
+ * Drives barge-in (talking over Atom) and the mute button. Pausing the element
+ * fires its `pause` handler, which is what releases the live-voice loop's wait
+ * on playback — see playResponseAudio().
+ */
 function stopAllPlayback() {
-    isSpeakingWave    = false;
-    playbackStarted   = false;
-    playbackScheduled = 0;
+    isSpeakingWave = false;
     if (currentAudio) { try { currentAudio.pause(); } catch(e){} currentAudio = null; }
-    // Actually kill scheduled realtime audio — this is what makes interrupting
-    // Atom (and the mute button) take effect immediately instead of after the
-    // already-queued buffers finish playing.
-    liveSources.forEach(s => { try { s.onended = null; s.stop(); } catch (e) {} });
-    liveSources = [];
     // Never leave the mic tap ducked, or the listening waveform goes flat for
     // the rest of the session.
     restoreMicGain();
 }
 
-// ── Realtime WebSocket session ────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+//  LIVE VOICE  —  ElevenLabs STT  →  Claude (tools)  →  ElevenLabs TTS
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Replaces the old OpenAI Realtime WebSocket mode (kept but unreferenced at the
+// bottom of this file). That mode answered with OpenAI directly, which meant it
+// had NO access to Gmail, Calendar, AccuLynx, the knowledge base, notes, or
+// scheduled tasks, bypassed the pending-action confirmation system, and carried
+// none of the UPPA guardrail.
+//
+// Every spoken turn now goes through the same brain as typed chat:
+//
+//     mic ──► MediaRecorder ──► POST /ai/voice
+//                                 │
+//                                 ├─ ElevenLabs Scribe   (speech → text)
+//                                 ├─ Claude + full tools (reason + act)
+//                                 └─ returns { transcription, message }
+//                                 │
+//              POST /ai/speak ────┘  ElevenLabs TTS (text → speech) ──► speaker
+//
+// Turn-taking is handled locally with energy-based voice activity detection, so
+// it stays hands-free: talk, pause, Atom answers, it listens again. Speaking
+// over Atom cuts him off (barge-in).
+//
+// OpenAI is not in this path at all — it is used only for knowledge-base
+// embeddings.
 
-async function startRealtimeSession() {
-    try {
-        updateStatus('Connecting to Atom...', 'processing');
+// -- Tuning ------------------------------------------------------------------
+/** Mic level above which we consider you to be talking. */
+const VAD_SPEECH_LEVEL   = 0.045;
+/** Higher bar to interrupt Atom, so his own voice bleeding into the mic doesn't. */
+const VAD_BARGE_LEVEL    = 0.11;
+/** Silence after speech that ends your turn. */
+const VAD_SILENCE_MS     = 1100;
+/** Hard cap on a single turn, so a stuck mic can't record forever. */
+const VAD_MAX_TURN_MS    = 30_000;
+/** Give up waiting for speech after this long and idle the session. */
+const VAD_NO_SPEECH_MS   = 45_000;
+/** Ignore the first moments after Atom stops talking (room echo tail). */
+const VAD_REARM_MS       = 250;
 
-        // 1. Get ephemeral token from our backend
-        const token = await AtomAPI.post('/ai/realtime-token', {}, { timeoutMs: 10_000 });
-        if (!token?.clientSecret) throw new Error('No client secret returned');
+// -- State -------------------------------------------------------------------
+let isLiveVoiceActive = false;  // a hands-free session is running
+let liveRecorder      = null;   // MediaRecorder for the current turn
+let liveChunks        = [];
+let liveRecMime       = 'audio/webm';
+let liveVadRaf        = null;
+let liveHeardSpeech   = false;
+let liveSilenceSince  = 0;
+let liveTurnStarted   = 0;
+let liveListenSince   = 0;
+let liveRearmAt       = 0;
+let liveTurnBusy      = false;  // true while a turn is being sent/answered
+let liveBargedIn      = false;  // you cut Atom off mid-reply
 
-        // 2. Open WebSocket to OpenAI Realtime
-        const ws = new WebSocket(
-            'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17',
-            ['realtime', `openai-insecure-api-key.${token.clientSecret}`, 'openai-beta.realtime-v1']
-        );
-
-        realtimeWs = ws;
-        realtimeSessionId = token.sessionId;
-
-        ws.onopen = () => {
-            console.log('✅ Realtime WS connected');
-            isRealtimeActive = true;
-            startMicCapture();
-        };
-
-        ws.onmessage = (event) => handleRealtimeEvent(JSON.parse(event.data));
-
-        ws.onerror = (err) => {
-            console.error('Realtime WS error:', err);
-            updateStatus('Voice connection error — retrying...', 'error');
-            cleanupRealtime();
-        };
-
-        ws.onclose = (evt) => {
-            console.log('Realtime WS closed:', evt.code, evt.reason);
-            isRealtimeActive = false;
-            isRecording      = false;
-            updateRecordingUI(false);
-            if (evt.code !== 1000) {
-                updateStatus('Voice disconnected. Click mic to reconnect.', 'info');
-            }
-        };
-
-    } catch (err) {
-        console.error('Failed to start realtime session:', err);
-        updateStatus('Live voice unavailable — tap the mic to record, tap again to send', 'info');
-        // Fall back to the legacy record → transcribe → respond pipeline so the
-        // mic still works even when the realtime token endpoint is unreachable.
-        try {
-            await startRecording();
-        } catch (e2) {
-            updateStatus('Microphone unavailable: ' + (e2 && e2.message ? e2.message : e2), 'error');
-        }
+/** Pick a container MediaRecorder can actually produce on this browser. */
+function pickRecorderMime() {
+    const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+    for (const m of candidates) {
+        if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m;
     }
+    return '';
 }
 
-function handleRealtimeEvent(evt) {
-    switch (evt.type) {
-
-        // Session is ready — update UI
-        case 'session.created':
-        case 'session.updated':
-            updateStatus('🎤 Listening… Speak now!', 'listening');
-            updateRecordingUI(true);
-            break;
-
-        // User speech detected — interrupt any current playback
-        case 'input_audio_buffer.speech_started':
-            // Restore mic gain — user is speaking (we muted it during playback)
-            if (window._micGain) window._micGain.gain.value = 1;
-            if (isSpeakingWave) {
-                stopAllPlayback();
-                if (realtimeWs?.readyState === WebSocket.OPEN) {
-                    realtimeWs.send(JSON.stringify({ type: 'response.cancel' }));
-                }
-            }
-            isProcessingWave = false;
-            updateStatus('🎤 Listening…', 'listening');
-            break;
-
-        case 'input_audio_buffer.speech_stopped':
-            isProcessingWave = true;
-            updateStatus('Processing…', 'processing');
-            break;
-
-        // Transcription of what user said — track for backend sync
-        case 'conversation.item.input_audio_transcription.completed':
-            if (evt.transcript?.trim()) {
-                currentUserTranscript = evt.transcript.trim();
-                addMessageToConversation('user', evt.transcript.trim());
-                pinResponseArea();
-            }
-            break;
-
-        // Atom is speaking — stream audio chunks
-        case 'response.audio.delta':
-            if (voiceResponseOn && evt.delta) {
-                const float32 = base64Pcm16ToFloat32(evt.delta);
-                scheduleAudioChunk(float32);
-            }
-            break;
-
-        // Accumulate text transcript of Atom's response
-        case 'response.audio_transcript.delta':
-            responseBuffer += evt.delta || '';
-            break;
-
-        // response.audio_transcript.done fires once with the full clean transcript
-        case 'response.audio_transcript.done': {
-            const transcript = evt.transcript ?? responseBuffer;
-            if (transcript?.trim()) {
-                addMessageToConversation('assistant', transcript.trim());
-                pinResponseArea();
-                // ── Sync this turn to the backend session ──────────────────
-                // This ensures that switching to text mode carries the full
-                // voice conversation context (text uses the Atom/Claude backend,
-                // realtime voice uses OpenAI directly — they need to share state).
-                saveTurnToBackend(currentUserTranscript, transcript.trim());
-                currentUserTranscript = '';
-            }
-            responseBuffer = '';
-            break;
-        }
-
-        // response.done = full turn finished — reset state
-        case 'response.done': {
-            isProcessingWave = false;
-            isSpeakingWave   = false;
-            updateStatus('🎤 Listening… Speak now!', 'listening');
-            break;
-        }
-
-        // Error from OpenAI
-        case 'error':
-            console.error('Realtime error:', evt.error);
-            updateStatus(`Voice error: ${evt.error?.message ?? 'unknown'}`, 'error');
-            // If session expired, reconnect
-            if (evt.error?.code === 'session_expired') {
-                cleanupRealtime();
-                setTimeout(startRealtimeSession, 500);
-            }
-            break;
-    }
+/** Open the mic once for the whole session and tap it into the silent analyser. */
+async function openLiveMic() {
+    micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl:  true,
+            channelCount:     1,
+        },
+    });
+    const ctx = getAudioCtx();
+    const source = ctx.createMediaStreamSource(micStream);
+    // Gain node kept so existing mute/duck helpers (restoreMicGain) still work.
+    window._micGain = ctx.createGain();
+    window._micGain.gain.value = 1;
+    source.connect(window._micGain);
+    window._micGain.connect(micAnalyser);   // silent tap — never reaches speakers
 }
 
-// ── Backend sync — save each realtime turn so text mode has context ───────────
-
-async function saveTurnToBackend(userMsg, assistantMsg) {
-    if (!userMsg && !assistantMsg) return;
+async function startLiveVoice() {
+    if (isLiveVoiceActive) return;
     try {
-        const result = await AtomAPI.post('/ai/sync-turn', {
-            userMessage:      userMsg      || undefined,
-            assistantMessage: assistantMsg || undefined,
-            ...(window.conversationId && { conversationId: window.conversationId }),
-        }, { timeoutMs: 8_000 });
-        // Keep window.conversationId in sync so subsequent text calls use same session
-        if (result?.conversationId && !window.conversationId) {
-            window.conversationId = result.conversationId;
-        }
-    } catch (err) {
-        // Non-fatal — don't break the voice session if sync fails
-        console.warn('[Atom] sync-turn failed (non-fatal):', err?.message ?? err);
-    }
-}
+        updateStatus('Starting voice…', 'processing');
+        await openLiveMic();
+        liveRecMime = pickRecorderMime();
 
-// ── Mic capture (ScriptProcessorNode → PCM16 → WebSocket) ────────────────────
-
-async function startMicCapture() {
-    try {
-        micStream = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 24000, channelCount: 1 }
-        });
-
-        const ctx = getAudioCtx();
-        const source = ctx.createMediaStreamSource(micStream);
-
-        // ScriptProcessorNode gives us raw PCM frames
-        micProcessor = ctx.createScriptProcessor(4096, 1, 1);
-        micProcessor.onaudioprocess = (e) => {
-            if (!isRealtimeActive || realtimeWs?.readyState !== WebSocket.OPEN) return;
-            const float32 = e.inputBuffer.getChannelData(0);
-            const b64 = float32ToBase64Pcm16(float32);
-            realtimeWs.send(JSON.stringify({
-                type: 'input_audio_buffer.append',
-                audio: b64,
-            }));
-        };
-
-        source.connect(micProcessor);
-        // Connect to a zero-gain node so onaudioprocess fires (required by Web Audio API)
-        // but mic audio never reaches speakers — fixes echo AND keeps transcription working
-        const _silentOut = ctx.createGain();
-        _silentOut.gain.value = 0;
-        micProcessor.connect(_silentOut);
-        _silentOut.connect(ctx.destination);;
-
-        // Also wire into analyser for waveform
-        // Connect mic through a GainNode so we can mute it during playback
-        // This prevents Atom's audio output from feeding back into VAD
-        window._micGain = audioCtx.createGain();
-        window._micGain.gain.value = 1;
-        source.connect(window._micGain);
-        window._micGain.connect(analyser);
-
-        isRecording = true;
+        isLiveVoiceActive = true;
         updateRecordingUI(true);
+
+        beginListeningTurn();
+        runVadLoop();
     } catch (err) {
-        console.error('Mic error:', err);
-        updateStatus('Microphone access denied.', 'error');
-        cleanupRealtime();
+        const detail = err && err.message ? err.message : String(err);
+        console.error('[Atom] Could not start live voice:', err);
+        isLiveVoiceActive = false;
+        updateRecordingUI(false);
+        // Hands-free couldn't start. Fall back to manual turn control rather
+        // than leaving the user with a mic button that does nothing.
+        await fallbackToTapToTalk(`Live voice unavailable (${detail})`);
     }
 }
 
-function stopMicCapture() {
-    if (micProcessor) { try { micProcessor.disconnect(); } catch(e){} micProcessor = null; }
-    if (micStream)    { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+/** Start recording a fresh turn. Safe to call repeatedly. */
+function beginListeningTurn() {
+    if (!isLiveVoiceActive || liveTurnBusy) return;
+    if (liveRecorder && liveRecorder.state === 'recording') return;
+    if (!micStream) return;
+
+    liveChunks       = [];
+    liveHeardSpeech  = false;
+    liveSilenceSince = 0;
+    liveTurnStarted  = Date.now();
+    liveListenSince  = Date.now();
+
+    try {
+        liveRecorder = new MediaRecorder(micStream, liveRecMime ? { mimeType: liveRecMime } : {});
+    } catch (e) {
+        console.error('[Atom] MediaRecorder failed:', e);
+        stopLiveVoice();
+        fallbackToTapToTalk('Hands-free recording unavailable in this browser');
+        return;
+    }
+
+    liveRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) liveChunks.push(e.data); };
+    liveRecorder.onstop  = () => sendLiveTurn();
+    liveRecorder.onerror = () => { console.error('[Atom] recorder error'); stopLiveVoice(); };
+    liveRecorder.start();
+
+    isRecording = true;
+    updateStatus('🎤 Listening… just start talking', 'listening');
+}
+
+/** Close the current turn and hand off to sendLiveTurn() via onstop. */
+function endListeningTurn() {
     isRecording = false;
+    if (liveRecorder && liveRecorder.state === 'recording') {
+        liveTurnBusy = true;
+        try { liveRecorder.stop(); } catch (e) { liveTurnBusy = false; }
+    }
+}
+
+/**
+ * The single VAD loop. State-aware so one rAF drives listening, barge-in
+ * detection, and re-arming after Atom finishes speaking.
+ */
+function runVadLoop() {
+    cancelAnimationFrame(liveVadRaf);
+
+    function tick() {
+        if (!isLiveVoiceActive) return;
+        const level = getMicEnergy();
+        const now   = Date.now();
+
+        if (isSpeakingWave) {
+            // Atom is talking — listen only for an interruption.
+            if (level > VAD_BARGE_LEVEL) {
+                console.log('[Atom] barge-in detected');
+                liveBargedIn = true;
+                // Killing the audio element leaves no echo tail, so we can
+                // reopen the mic immediately and catch the whole interruption.
+                stopAllPlayback();
+            }
+            liveVadRaf = requestAnimationFrame(tick);
+            return;
+        }
+
+        if (liveTurnBusy || (liveRearmAt && now < liveRearmAt)) {
+            liveVadRaf = requestAnimationFrame(tick);
+            return;
+        }
+
+        // Not recording but idle and free → open a new turn.
+        if (!liveRecorder || liveRecorder.state !== 'recording') {
+            beginListeningTurn();
+            liveVadRaf = requestAnimationFrame(tick);
+            return;
+        }
+
+        if (level > VAD_SPEECH_LEVEL) {
+            liveHeardSpeech  = true;
+            liveSilenceSince = 0;
+        } else if (liveHeardSpeech) {
+            if (!liveSilenceSince) {
+                liveSilenceSince = now;
+            } else if (now - liveSilenceSince > VAD_SILENCE_MS) {
+                endListeningTurn();               // you stopped talking → send
+                liveVadRaf = requestAnimationFrame(tick);
+                return;
+            }
+        }
+
+        if (liveHeardSpeech && now - liveTurnStarted > VAD_MAX_TURN_MS) {
+            endListeningTurn();                   // safety valve
+        } else if (!liveHeardSpeech && now - liveListenSince > VAD_NO_SPEECH_MS) {
+            updateStatus('Still here — tap the mic when you want to talk.', 'info');
+            stopLiveVoice();
+            return;
+        }
+
+        liveVadRaf = requestAnimationFrame(tick);
+    }
+
+    tick();
+}
+
+/** Ship the recorded turn through STT → Claude → TTS, then listen again. */
+async function sendLiveTurn() {
+    const chunks = liveChunks;
+    liveChunks = [];
+
+    const blob = new Blob(chunks, { type: liveRecMime || 'audio/webm' });
+
+    // Too small to contain speech — don't spend an API call on it.
+    if (!liveHeardSpeech || blob.size < 1000) {
+        liveTurnBusy = false;
+        if (isLiveVoiceActive) beginListeningTurn();
+        return;
+    }
+
+    isProcessingWave = true;
+    updateStatus('Thinking…', 'processing');
+
+    try {
+        const form = new FormData();
+        const ext = (liveRecMime.includes('mp4') ? '.mp4'
+                   : liveRecMime.includes('ogg') ? '.ogg'
+                   : '.webm');
+        form.append('audio', blob, 'turn' + ext);
+        if (window.conversationId) form.append('conversationId', window.conversationId);
+
+        // 60s: a turn that triggers a tool chain (email + calendar + CRM) is slow.
+        const result = await AtomAPI.postForm('/ai/voice', form, { timeoutMs: 60_000 });
+
+        if (result.conversationId) window.conversationId = result.conversationId;
+        if (result.transcription) addMessageToConversation('user', result.transcription);
+        addMessageToConversation('assistant', result.message);
+        pinResponseArea();
+
+        isProcessingWave = false;
+
+        // Spoken reply via ElevenLabs. Awaited so the next turn doesn't open
+        // while Atom is still mid-sentence.
+        await playResponseAudio(result.message);
+
+    } catch (err) {
+        isProcessingWave = false;
+        console.error('[Atom] live turn failed:', err);
+
+        if (err.status === 400 || (err.message && err.message.includes('tool_use_id'))) {
+            await clearBrokenSession();
+            updateStatus('Session reset — try that again.', 'info');
+        } else {
+            updateStatus('Voice error: ' + (err.message || err), 'error');
+            addMessageToConversation('assistant', `Sorry, I hit a voice error: ${err.message || err}`);
+            pinResponseArea();
+        }
+    } finally {
+        isProcessingWave = false;
+        liveTurnBusy     = false;
+        // Skip the room-echo tail after Atom speaks — but not after a barge-in,
+        // where playback was cut dead and you are already mid-sentence.
+        liveRearmAt      = liveBargedIn ? 0 : Date.now() + VAD_REARM_MS;
+        liveBargedIn     = false;
+        // Deliberately NOT calling beginListeningTurn() here — the VAD loop
+        // opens the next turn once the re-arm window closes, so we never start
+        // recording into the tail of Atom's own voice.
+        if (isLiveVoiceActive) updateStatus('🎤 Listening…', 'listening');
+    }
+}
+
+/** End the hands-free session and release the mic. */
+function stopLiveVoice() {
+    isLiveVoiceActive = false;
+    liveTurnBusy      = false;
+    liveHeardSpeech   = false;
+
+    cancelAnimationFrame(liveVadRaf);
+    liveVadRaf = null;
+
+    if (liveRecorder) {
+        try {
+            liveRecorder.onstop = null;         // don't send a half turn on teardown
+            if (liveRecorder.state === 'recording') liveRecorder.stop();
+        } catch (e) {}
+        liveRecorder = null;
+    }
+    liveChunks = [];
+
+    if (micStream) {
+        micStream.getTracks().forEach(t => t.stop());
+        micStream = null;
+    }
+
+    stopAllPlayback();
+    isRecording      = false;
+    isProcessingWave = false;
     updateRecordingUI(false);
 }
 
-function cleanupRealtime() {
-    stopMicCapture();
-    stopAllPlayback();
-    if (realtimeWs) {
-        try { realtimeWs.close(1000, 'cleanup'); } catch(e){}
-        realtimeWs = null;
+// -- Tap-to-talk fallback ------------------------------------------------------
+
+/**
+ * Manual record -> send, used when the hands-free session can't start.
+ * Same pipeline as live voice (ElevenLabs -> Claude -> ElevenLabs); you just
+ * control the turn boundaries with the mic button instead of by pausing.
+ */
+async function fallbackToTapToTalk(reason) {
+    updateStatus(`${reason} - tap the mic to record, tap again to send`, 'info');
+    try {
+        await startRecording();
+    } catch (e) {
+        updateStatus('Microphone unavailable: ' + (e && e.message ? e.message : e), 'error');
     }
-    isRealtimeActive  = false;
-    isProcessingWave  = false;
-    isSpeakingWave    = false;
 }
+
 
 // ── Main toggle ───────────────────────────────────────────────────────────────
 
 async function toggleRecording() {
-    if (isRealtimeActive) {
-        // End the realtime (live chat) session
-        cleanupRealtime();
+    if (isLiveVoiceActive) {
+        // End the hands-free session
+        stopLiveVoice();
         updateStatus('Voice session ended.', 'info');
-        updateRecordingUI(false);
     } else if (isRecording) {
-        // A legacy fallback recording is in progress — stop it and transcribe
+        // A one-shot tap-to-record is in progress — stop it and transcribe
         stopRecording();
     } else {
-        // Start live chat (falls back to tap-to-record if realtime is unavailable)
-        await startRealtimeSession();
+        // Start hands-free live voice (ElevenLabs → Claude → ElevenLabs)
+        await startLiveVoice();
     }
 }
 
@@ -594,7 +650,7 @@ function startVoiceToText() {
     }
 
     // Stop live voice if it's running
-    if (isRealtimeActive) cleanupRealtime();
+    if (isLiveVoiceActive) stopLiveVoice();
 
     const input = document.getElementById('mainTextInput');
 
@@ -701,7 +757,7 @@ function updateRecordingUI(recording) {
 
 function emergencyResetRecording() {
     console.log('🚨 Emergency reset');
-    cleanupRealtime();
+    stopLiveVoice();
     if (mediaRecorder) {
         try { if (mediaRecorder.state === 'recording') mediaRecorder.stop(); } catch(e){}
         if (mediaRecorder.stream) mediaRecorder.stream.getTracks().forEach(t => t.stop());
@@ -786,37 +842,81 @@ async function processLegacyAudio() {
 // ── TTS playback (legacy / text responses) ────────────────────────────────────
 
 /**
- * Speak `text` through the backend TTS endpoint.
+ * Speak `text` through the backend TTS endpoint (ElevenLabs).
  * Always plays when called directly — callers decide whether speaking is
  * allowed (see maybeSpeakResponse / readMessageAloud). The master mute still
  * wins so the user always has one switch that silences everything.
+ *
+ * Resolves when playback FINISHES (or fails), so the live-voice loop can wait
+ * for Atom to stop talking before it reopens the mic. Callers that don't care
+ * can still ignore the promise.
  */
-async function playResponseAudio(text) {
-    if (!voiceResponseOn || !text?.trim()) return;
+function playResponseAudio(text) {
+    if (!voiceResponseOn || !text?.trim()) return Promise.resolve();
     stopAllPlayback();
-    try {
-        const resp = await AtomAPI.postRaw('/ai/speak', { text }, { timeoutMs: 30_000 });
-        if (!resp.ok) return;
-        const blob = await resp.blob();
-        const url  = URL.createObjectURL(blob);
-        currentAudio = new Audio(url);
-        const ctx = getAudioCtx();
-        const src = ctx.createMediaElementSource(currentAudio);
-        src.connect(analyser);
-        isSpeakingWave = true;
-        currentAudio.onended = () => {
-            restoreMicGain();
+
+    return (async () => {
+        let url = null;
+        try {
+            const resp = await AtomAPI.postRaw('/ai/speak', { text }, { timeoutMs: 30_000 });
+            if (!resp.ok) return;
+            const blob = await resp.blob();
+            url = URL.createObjectURL(blob);
+            currentAudio = new Audio(url);
+
+            const ctx = getAudioCtx();
+            // Route through the playback analyser so the waveform reacts to Atom.
+            const src = ctx.createMediaElementSource(currentAudio);
+            src.connect(analyser);
+
+            isSpeakingWave = true;
+
+            // Resolve on end, error, OR barge-in (stopAllPlayback pauses the
+            // element, which fires neither 'ended' nor 'error' — without the
+            // pause handler an interrupted reply would hang the live loop).
+            await new Promise((resolve) => {
+                let settled  = false;
+                let watchdog = null;
+                const done = () => {
+                    if (settled) return;
+                    settled = true;
+                    if (watchdog) clearTimeout(watchdog);
+                    isSpeakingWave = false;
+                    restoreMicGain();
+                    if (url) URL.revokeObjectURL(url);
+                    resolve();
+                };
+                currentAudio.onended = done;
+                currentAudio.onerror = done;
+                currentAudio.onpause = done;
+
+                // Backstop. If the element never reports 'ended' — a truncated or
+                // corrupt blob, a codec the browser accepts then stalls on, a
+                // background tab suspending playback — this promise would never
+                // settle, and the live-voice loop would sit forever with the mic
+                // closed and no way back. Always give it a way out.
+                const arm = (ms) => {
+                    if (watchdog) clearTimeout(watchdog);
+                    watchdog = setTimeout(done, ms);
+                };
+                arm(60_000);
+                currentAudio.onloadedmetadata = () => {
+                    // Once we know the real length, tighten the backstop to it.
+                    const d = currentAudio.duration;
+                    arm(Number.isFinite(d) && d > 0 ? d * 1000 + 3_000 : 60_000);
+                };
+
+                if (window._micGain) window._micGain.gain.value = 0;
+                currentAudio.play().catch(done);
+            });
+        } catch (e) {
+            // play() rejects under autoplay policy — without this the mic tap
+            // would stay ducked forever and the waveform would sit flat.
             isSpeakingWave = false;
-            URL.revokeObjectURL(url);
-        };
-        if (window._micGain) window._micGain.gain.value = 0;
-        await currentAudio.play();
-    } catch (e) {
-        // play() rejects under autoplay policy — without this the mic tap would
-        // stay ducked forever and the listening waveform would sit flat.
-        isSpeakingWave = false;
-        restoreMicGain();
-    }
+            restoreMicGain();
+            if (url) URL.revokeObjectURL(url);
+        }
+    })();
 }
 
 function stopAudioPlayback() { stopAllPlayback(); }
@@ -830,7 +930,7 @@ function stopAudioPlayback() { stopAllPlayback(); }
  */
 function maybeSpeakResponse(text, source = 'text') {
     if (!text?.trim()) return;
-    const inLiveVoice = source === 'live' || isRealtimeActive;
+    const inLiveVoice = source === 'live' || isLiveVoiceActive;
     if (!inLiveVoice && !alwaysReadOn) return;   // silent by default
     playResponseAudio(text);
 }
