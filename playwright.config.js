@@ -3,6 +3,10 @@ const { defineConfig, devices } = require('@playwright/test');
 
 module.exports = defineConfig({
     testDir: './tests',
+    // Only *.spec.js is Playwright's. tests/live-voice.harness.js is a plain
+    // Node harness (see its header) run by `npm run test:voice` — it must not be
+    // picked up here, or Playwright will try to execute it as a browser test.
+    testMatch: '**/*.spec.js',
     timeout: 30_000,
     retries: 1,
     use: {
