@@ -122,7 +122,12 @@ function buildSandbox(opts = {}) {
     }
 
     const sandbox = {
-        console: { log: () => {}, warn: () => {}, error: (...a) => console.error("[sandbox]", ...a) },
+        // Silent by default. Two tests deliberately inject failures, and their
+        // stack traces printed to a clean run look exactly like something broke.
+        // Set VOICE_HARNESS_DEBUG=1 to see them.
+        console: process.env.VOICE_HARNESS_DEBUG
+            ? console
+            : { log: () => {}, warn: () => {}, error: () => {} },
         Date: { now: () => NOW },
         setTimeout: (fn, ms) => { const id = ++timerId; timers.push({ id, at: NOW + (ms || 0), fn }); return id; },
         clearTimeout: (id) => { timers = timers.filter(t => t.id !== id); },
