@@ -515,30 +515,317 @@ async function loadCrmJobs() {
     }
 }
 
-// ── CRM: Contacts ──────────────────────────────────────────────────────────
+// ── Contacts ───────────────────────────────────────────────────────────────
+//
+// One panel, two sources:
+//   • Atom's address book  — the company's own people. Editable here.
+//   • AccuLynx contacts    — attached to jobs. Read-only, shown for reference.
+//
+// They're kept apart on the backend for good reason (AccuLynx contacts are
+// governed by the CRM access policy and need 10-digit phones / numeric state
+// IDs), but a person looking for a phone number shouldn't have to know that.
+
+/** Format an address from whichever parts exist. Returns '' if none do. */
+function formatAddress(c) {
+    const line1 = [c.street1, c.street2].filter(Boolean).join(', ');
+    const line2 = [c.city, c.state].filter(Boolean).join(', ');
+    const line3 = [line2, c.zip].filter(Boolean).join(' ');
+    return [line1, line3].filter(Boolean).join(' · ');
+}
+
+/** Normalise an AccuLynx contact into the same shape we render Atom's in. */
+function normaliseCrmContact(c) {
+    const addr = c.mailingAddress || c.billingAddress || {};
+    return {
+        displayName: c.name || [c.firstName, c.lastName].filter(Boolean).join(' ') || c.companyName || 'Contact',
+        companyName: c.companyName,
+        email:   c.email || (Array.isArray(c.emailAddresses) ? (c.emailAddresses[0]?.address ?? c.emailAddresses[0]) : undefined),
+        phone:   c.phone || (Array.isArray(c.phoneNumbers)   ? (c.phoneNumbers[0]?.number   ?? c.phoneNumbers[0])   : undefined),
+        street1: addr.street1,
+        street2: addr.street2,
+        city:    addr.city,
+        state:   addr.state?.abbreviation ?? addr.state?.name ?? addr.state,
+        zip:     addr.zipCode,
+    };
+}
+
+function contactCard(c, opts = {}) {
+    const address = formatAddress(c);
+    const sourceBadge = opts.readOnly
+        ? '<span style="font-size:0.68rem;color:#64748b;border:1px solid rgba(255,255,255,0.15);border-radius:4px;padding:0 0.3rem;margin-left:0.4rem;">AccuLynx</span>'
+        : (c.source && c.source !== 'manual'
+            ? `<span style="font-size:0.68rem;color:#64748b;border:1px solid rgba(255,255,255,0.15);border-radius:4px;padding:0 0.3rem;margin-left:0.4rem;">${esc(c.source === 'google' ? 'Gmail' : 'Outlook')}</span>`
+            : '');
+
+    const actions = opts.readOnly ? '' : `
+        <div style="display:flex;gap:0.35rem;margin-top:0.4rem;">
+            <button class="panel-action-btn" data-action="editContact('${esc(c.id)}')" style="font-size:0.7rem;padding:0.15rem 0.45rem;">Edit</button>
+            <button class="panel-action-btn" data-action="deleteContact('${esc(c.id)}')" style="font-size:0.7rem;padding:0.15rem 0.45rem;">Delete</button>
+        </div>`;
+
+    return `
+        <div class="crm-card">
+            <div class="crm-title">${esc(c.displayName)}${sourceBadge}</div>
+            ${c.companyName ? `<div class="crm-sub">${esc(c.companyName)}${c.title ? ' · ' + esc(c.title) : ''}</div>` : ''}
+            ${c.phone   ? `<div class="crm-sub">📞 ${esc(c.phone)}</div>` : ''}
+            ${c.email   ? `<div class="crm-sub">✉️ ${esc(c.email)}</div>` : ''}
+            ${address   ? `<div class="crm-sub">📍 ${esc(address)}</div>` : ''}
+            ${c.notes   ? `<div class="crm-sub" style="opacity:0.75;">${esc(c.notes)}</div>` : ''}
+            ${actions}
+        </div>`;
+}
 
 async function loadCrmContacts() {
     const body   = document.getElementById('crmContactsBody');
     const search = document.getElementById('crmContactSearch')?.value?.trim() || '';
     const s      = AtomAPI.state(body);
     s.loading('Loading contacts…');
+
+    const qs = search ? `?search=${encodeURIComponent(search)}` : '';
+
+    // Pull both sources. Either can fail independently — a CRM outage must not
+    // hide the address book, and vice versa.
+    const [own, crm] = await Promise.allSettled([
+        AtomAPI.get('/contacts' + qs),
+        AtomAPI.get('/integrations/crm/contacts' + qs),
+    ]);
+
+    let html = '';
+    const problems = [];
+
+    if (own.status === 'fulfilled' && own.value?.success) {
+        const list = own.value.contacts ?? [];
+        if (list.length) {
+            html += `<div class="crm-sub" style="margin:0.2rem 0 0.4rem;opacity:0.7;">My contacts (${list.length})</div>`;
+            html += list.map(c => contactCard(c)).join('');
+        }
+    } else if (own.status === 'rejected') {
+        problems.push('address book: ' + (own.reason?.message ?? 'unavailable'));
+    } else if (own.value?.error) {
+        problems.push('address book: ' + own.value.error);
+    }
+
+    if (crm.status === 'fulfilled') {
+        const list = responseList(crm.value, ['contacts']) ?? [];
+        if (Array.isArray(list) && list.length) {
+            html += `<div class="crm-sub" style="margin:0.7rem 0 0.4rem;opacity:0.7;">From AccuLynx jobs (${list.length})</div>`;
+            html += list.map(c => contactCard(normaliseCrmContact(c), { readOnly: true })).join('');
+        }
+    } else {
+        problems.push('AccuLynx: ' + (crm.reason?.message ?? 'unavailable'));
+    }
+
+    if (!html) {
+        s.empty(search ? `No contacts matching "${esc(search)}"` : 'No contacts yet — add one above.');
+    } else {
+        body.innerHTML = html;
+    }
+
+    if (problems.length) {
+        body.insertAdjacentHTML('afterbegin',
+            `<div class="async-error" style="margin-bottom:0.5rem;">⚠️ ${esc(problems.join(' · '))}</div>`);
+    }
+}
+
+// ── Add / edit form ────────────────────────────────────────────────────────
+
+function contactFormFields() {
+    return {
+        firstName:   document.getElementById('contactFirstName').value.trim(),
+        lastName:    document.getElementById('contactLastName').value.trim(),
+        companyName: document.getElementById('contactCompany').value.trim(),
+        title:       document.getElementById('contactTitle').value.trim(),
+        phone:       document.getElementById('contactPhone').value.trim(),
+        email:       document.getElementById('contactEmail').value.trim(),
+        street1:     document.getElementById('contactStreet1').value.trim(),
+        city:        document.getElementById('contactCity').value.trim(),
+        state:       document.getElementById('contactState').value.trim(),
+        zip:         document.getElementById('contactZip').value.trim(),
+        notes:       document.getElementById('contactNotes').value.trim(),
+    };
+}
+
+function setContactForm(c = {}) {
+    document.getElementById('contactEditId').value    = c.id ?? '';
+    document.getElementById('contactFirstName').value = c.firstName   ?? '';
+    document.getElementById('contactLastName').value  = c.lastName    ?? '';
+    document.getElementById('contactCompany').value   = c.companyName ?? '';
+    document.getElementById('contactTitle').value     = c.title       ?? '';
+    document.getElementById('contactPhone').value     = c.phone       ?? '';
+    document.getElementById('contactEmail').value     = c.email       ?? '';
+    document.getElementById('contactStreet1').value   = c.street1     ?? '';
+    document.getElementById('contactCity').value      = c.city        ?? '';
+    document.getElementById('contactState').value     = c.state       ?? '';
+    document.getElementById('contactZip').value       = c.zip         ?? '';
+    document.getElementById('contactNotes').value     = c.notes       ?? '';
+    document.getElementById('contactFormMsg').innerHTML = '';
+    document.getElementById('contactSaveBtn').textContent = c.id ? 'Save changes' : 'Save contact';
+}
+
+function toggleContactForm(show) {
+    const wrap = document.getElementById('contactFormWrap');
+    const open = show ?? (wrap.style.display === 'none');
+    wrap.style.display = open ? '' : 'none';
+    if (open) {
+        document.getElementById('contactImportWrap').style.display = 'none';
+        setContactForm();
+        document.getElementById('contactFirstName').focus();
+    }
+}
+
+function cancelContactForm() { toggleContactForm(false); }
+
+async function editContact(id) {
     try {
-        const url  = '/integrations/crm/contacts' + (search ? `?search=${encodeURIComponent(search)}` : '');
-        const data = await AtomAPI.get(url);
-        throwIfBackendError(data);
-        const contacts = responseList(data, ['contacts']);
-        if (!Array.isArray(contacts) || contacts.length === 0) {
-            s.empty(search ? `No contacts matching "${esc(search)}"` : 'No contacts found.');
+        const res = await AtomAPI.get(`/contacts/${encodeURIComponent(id)}`);
+        if (!res?.success) throw new Error(res?.error || 'Contact not found');
+        toggleContactForm(true);
+        setContactForm(res.contact);
+    } catch (err) {
+        alert('Could not load that contact: ' + err.message);
+    }
+}
+
+async function saveContact() {
+    const msg  = document.getElementById('contactFormMsg');
+    const btn  = document.getElementById('contactSaveBtn');
+    const id   = document.getElementById('contactEditId').value;
+    const body = contactFormFields();
+
+    if (!body.firstName && !body.lastName && !body.companyName) {
+        msg.innerHTML = '<span style="color:#f87171;">Enter at least a first name, last name, or company.</span>';
+        return;
+    }
+
+    const restore = AtomAPI.withButton(btn, 'Saving…');
+    try {
+        const res = id
+            ? await AtomAPI.patch(`/contacts/${encodeURIComponent(id)}`, body)
+            : await AtomAPI.post('/contacts', body);
+
+        if (!res?.success) {
+            // A duplicate isn't an error the user should have to decode — offer the choice.
+            if (res?.duplicateOf) {
+                msg.innerHTML =
+                    `<span style="color:#fbbf24;">${esc(res.error)}</span> ` +
+                    `<button class="panel-action-btn" data-action="saveContactAnyway()" style="font-size:0.7rem;padding:0.1rem 0.4rem;">Add anyway</button>`;
+                return;
+            }
+            throw new Error(res?.error || 'Save failed');
+        }
+
+        msg.innerHTML = `<span style="color:#4ade80;">${esc(res.message || 'Saved.')}</span>`;
+        toggleContactForm(false);
+        loadCrmContacts();
+    } catch (err) {
+        msg.innerHTML = `<span style="color:#f87171;">${esc(err.message)}</span>`;
+    } finally {
+        restore();
+    }
+}
+
+/** Second attempt after a duplicate warning — the user said add them anyway. */
+async function saveContactAnyway() {
+    const msg = document.getElementById('contactFormMsg');
+    try {
+        const res = await AtomAPI.post('/contacts', { ...contactFormFields(), allowDuplicate: true });
+        if (!res?.success) throw new Error(res?.error || 'Save failed');
+        msg.innerHTML = `<span style="color:#4ade80;">${esc(res.message || 'Saved.')}</span>`;
+        toggleContactForm(false);
+        loadCrmContacts();
+    } catch (err) {
+        msg.innerHTML = `<span style="color:#f87171;">${esc(err.message)}</span>`;
+    }
+}
+
+async function deleteContact(id) {
+    if (!AtomAPI.confirm('Delete this contact?')) return;
+    try {
+        const res = await AtomAPI.del(`/contacts/${encodeURIComponent(id)}`);
+        if (!res?.success) throw new Error(res?.error || 'Delete failed');
+        loadCrmContacts();
+    } catch (err) {
+        alert('Could not delete: ' + err.message);
+    }
+}
+
+// ── Import from the connected mailbox ──────────────────────────────────────
+//
+// Search and pick. Never bulk — Google's "other contacts" holds every address
+// auto-saved from mail you've ever sent, and dumping that here would bury the
+// people who actually matter.
+
+let mailboxMatches = [];
+
+function toggleContactImport(show) {
+    const wrap = document.getElementById('contactImportWrap');
+    const open = show ?? (wrap.style.display === 'none');
+    wrap.style.display = open ? '' : 'none';
+    if (open) {
+        document.getElementById('contactFormWrap').style.display = 'none';
+        document.getElementById('contactImportQuery').focus();
+    }
+}
+
+async function searchMailboxContacts() {
+    const q    = document.getElementById('contactImportQuery').value.trim();
+    const body = document.getElementById('contactImportBody');
+    if (!q) { body.innerHTML = ''; return; }
+
+    const s = AtomAPI.state(body);
+    s.loading('Searching your contacts…');
+
+    try {
+        const res = await AtomAPI.get(`/contacts/directory?q=${encodeURIComponent(q)}`);
+
+        if (!res?.success) {
+            // The reconnect case is not a fault — it's a missing permission,
+            // and the fix is a button the user can actually press.
+            if (res?.needsReconnect) {
+                body.innerHTML =
+                    `<div class="async-error">🔐 ${esc(res.error)}</div>
+                     <button class="panel-action-btn" data-action="showPanel('connections')" style="margin-top:0.4rem;font-size:0.75rem;padding:0.25rem 0.6rem;">Open Connections</button>`;
+                return;
+            }
+            throw new Error(res?.error || 'Search failed');
+        }
+
+        mailboxMatches = res.matches ?? [];
+        if (!mailboxMatches.length) {
+            s.empty(`Nobody matching "${esc(q)}" in your ${res.provider === 'google' ? 'Gmail' : 'Outlook'} contacts.`);
             return;
         }
-        body.innerHTML = contacts.map(c => `
+
+        body.innerHTML = mailboxMatches.map((m, i) => {
+            const address = formatAddress(m);
+            return `
             <div class="crm-card">
-                <div class="crm-title">${esc(c.name || [c.firstName, c.lastName].filter(Boolean).join(' ') || 'Contact')}</div>
-                ${c.email ? `<div class="crm-sub">${esc(c.email)}</div>` : ''}
-                ${c.phone ? `<div class="crm-sub">${esc(c.phone)}</div>` : ''}
-            </div>`).join('');
+                <div class="crm-title">${esc(m.displayName)}</div>
+                ${m.companyName ? `<div class="crm-sub">${esc(m.companyName)}</div>` : ''}
+                ${m.phone   ? `<div class="crm-sub">📞 ${esc(m.phone)}</div>` : ''}
+                ${m.email   ? `<div class="crm-sub">✉️ ${esc(m.email)}</div>` : ''}
+                ${address   ? `<div class="crm-sub">📍 ${esc(address)}</div>` : ''}
+                <button class="panel-action-btn" data-action="importMailboxContact(${i})" style="margin-top:0.4rem;font-size:0.7rem;padding:0.15rem 0.5rem;">＋ Add to contacts</button>
+            </div>`;
+        }).join('');
     } catch (err) {
-        s.error('Could not load contacts: ' + esc(err.message));
+        s.error('Could not search your contacts: ' + esc(err.message));
+    }
+}
+
+async function importMailboxContact(index) {
+    const m = mailboxMatches[index];
+    if (!m) return;
+    try {
+        const res = await AtomAPI.post('/contacts', m);
+        if (!res?.success) {
+            if (res?.duplicateOf) { alert(res.error); return; }
+            throw new Error(res?.error || 'Could not add');
+        }
+        loadCrmContacts();
+        alert(res.message || 'Added.');
+    } catch (err) {
+        alert('Could not add: ' + err.message);
     }
 }
 

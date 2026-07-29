@@ -621,10 +621,57 @@
                 <button class="panel-action-btn" data-action="loadCrmContacts()">↻ Refresh</button>
             </div>
             <div class="panel-body">
-                <div style="display:flex;gap:0.4rem;margin-bottom:0.75rem;">
+                <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;">
                     <input class="form-input" id="crmContactSearch" type="text" placeholder="Search contacts…" style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;" data-enter="loadCrmContacts">
                     <button class="panel-action-btn" data-action="loadCrmContacts()" style="padding:0.3rem 0.6rem;">🔍</button>
                 </div>
+
+                <div style="display:flex;gap:0.4rem;margin-bottom:0.75rem;">
+                    <button class="panel-action-btn" data-action="toggleContactForm()" style="flex:1;padding:0.3rem 0.6rem;font-size:0.78rem;">＋ Add contact</button>
+                    <button class="panel-action-btn" data-action="toggleContactImport()" style="flex:1;padding:0.3rem 0.6rem;font-size:0.78rem;">📇 From my email</button>
+                </div>
+
+                <!-- Add / edit form — hidden until Add is pressed -->
+                <div id="contactFormWrap" style="display:none;margin-bottom:0.85rem;padding:0.7rem;border:1px solid rgba(255,255,255,0.12);border-radius:8px;">
+                    <input type="hidden" id="contactEditId">
+                    <div style="display:flex;gap:0.4rem;margin-bottom:0.4rem;">
+                        <input class="form-input" id="contactFirstName" type="text" placeholder="First name" style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;">
+                        <input class="form-input" id="contactLastName"  type="text" placeholder="Last name"  style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;">
+                    </div>
+                    <div style="display:flex;gap:0.4rem;margin-bottom:0.4rem;">
+                        <input class="form-input" id="contactCompany" type="text" placeholder="Company" style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;">
+                        <input class="form-input" id="contactTitle"   type="text" placeholder="Role (e.g. adjuster)" style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;">
+                    </div>
+                    <div style="display:flex;gap:0.4rem;margin-bottom:0.4rem;">
+                        <input class="form-input" id="contactPhone" type="tel"   placeholder="Phone" style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;">
+                        <input class="form-input" id="contactEmail" type="email" placeholder="Email" style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;">
+                    </div>
+                    <input class="form-input" id="contactStreet1" type="text" placeholder="Street address" style="width:100%;padding:0.4rem 0.6rem;font-size:0.82rem;margin-bottom:0.4rem;">
+                    <div style="display:flex;gap:0.4rem;margin-bottom:0.4rem;">
+                        <input class="form-input" id="contactCity"  type="text" placeholder="City"  style="flex:2;padding:0.4rem 0.6rem;font-size:0.82rem;">
+                        <input class="form-input" id="contactState" type="text" placeholder="State" style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;">
+                        <input class="form-input" id="contactZip"   type="text" placeholder="ZIP"   style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;">
+                    </div>
+                    <textarea class="form-input" id="contactNotes" placeholder="Notes (optional)" rows="2" style="width:100%;padding:0.4rem 0.6rem;font-size:0.82rem;margin-bottom:0.5rem;"></textarea>
+                    <div style="display:flex;gap:0.4rem;">
+                        <button class="panel-action-btn" id="contactSaveBtn" data-action="saveContact()" style="flex:1;padding:0.35rem 0.6rem;">Save contact</button>
+                        <button class="panel-action-btn" data-action="cancelContactForm()" style="padding:0.35rem 0.8rem;">Cancel</button>
+                    </div>
+                    <div id="contactFormMsg" style="margin-top:0.45rem;font-size:0.78rem;"></div>
+                </div>
+
+                <!-- Import from the connected mailbox — search and pick, never bulk -->
+                <div id="contactImportWrap" style="display:none;margin-bottom:0.85rem;padding:0.7rem;border:1px solid rgba(255,255,255,0.12);border-radius:8px;">
+                    <div style="font-size:0.78rem;color:#94a3b8;margin-bottom:0.45rem;">
+                        Search your Gmail or Outlook contacts. Nothing is saved until you pick someone.
+                    </div>
+                    <div style="display:flex;gap:0.4rem;margin-bottom:0.5rem;">
+                        <input class="form-input" id="contactImportQuery" type="text" placeholder="Name, email, or company…" style="flex:1;padding:0.4rem 0.6rem;font-size:0.82rem;" data-enter="searchMailboxContacts">
+                        <button class="panel-action-btn" data-action="searchMailboxContacts()" style="padding:0.3rem 0.6rem;">🔍</button>
+                    </div>
+                    <div id="contactImportBody"></div>
+                </div>
+
                 <div id="crmContactsBody">
                     <p class="panel-msg">Loading contacts…</p>
                 </div>
