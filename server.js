@@ -4,6 +4,7 @@ const express  = require('express');
 const https    = require('https');
 const http     = require('http');
 const path     = require('path');
+const zlib     = require('zlib');
 const helmet   = require('helmet');
 const app      = express();
 
@@ -144,6 +145,26 @@ function decodeJwtPayload(token) {
 const TOKEN_ISSUING_PATHS = [/^\/auth\/login$/, /^\/auth\/register$/];
 const issuesToken = (p) => TOKEN_ISSUING_PATHS.some((re) => re.test(p));
 
+/**
+ * Undo Content-Encoding so a token-issuing response can actually be parsed.
+ *
+ * This proxy forwards the browser's Accept-Encoding upstream, and Railway's edge
+ * honours it — so the login response arrived gzipped, `Buffer.concat(chunks)
+ * .toString('utf8')` produced binary garbage, JSON.parse threw, and the catch
+ * fell through to "not a token response, pass it through byte-for-byte". Net
+ * effect: no session cookie was ever set (every later /proxy/* call 401s with
+ * "You must be logged in"), AND the raw JWT was handed to page JavaScript —
+ * precisely what moving it into an httpOnly cookie was meant to prevent.
+ */
+function decodeBody(buf, encoding) {
+  switch (String(encoding || '').trim().toLowerCase()) {
+    case 'gzip':    return zlib.gunzipSync(buf);
+    case 'deflate': return zlib.inflateSync(buf);
+    case 'br':      return zlib.brotliDecompressSync(buf);
+    default:        return buf;
+  }
+}
+
 // ─── Anonymous allowlist ───────────────────────────────────────────────────────
 // SECURITY: the proxy signs requests with the server-side API_KEY, which the
 // backend treats as OWNER-level credentials. Previously EVERY anonymous request
@@ -181,6 +202,14 @@ app.all('/proxy/*', (req, res) => {
     if (!HOP_BY_HOP.has(k.toLowerCase())) headers[k] = v;
   }
   delete headers['host'];
+
+  // Belt: on the two paths whose body we have to read, ask upstream for
+  // plaintext instead of blindly forwarding the browser's
+  // "Accept-Encoding: gzip, deflate, br". Braces: decodeBody() in the response
+  // handler still copes if something compresses anyway. Every other path keeps
+  // normal compression — those are streamed through untouched.
+  const captureToken = issuesToken(targetUrl.pathname);
+  if (captureToken) delete headers['accept-encoding'];
 
   // The browser must never influence what the backend believes about the
   // client address. The backend runs with `trust proxy` and uses the resulting
@@ -227,8 +256,6 @@ app.all('/proxy/*', (req, res) => {
     timeout  : PROXY_TIMEOUT_MS,
   };
 
-  const captureToken = issuesToken(targetUrl.pathname);
-
   const proxyReq = protocol.request(options, (proxyRes) => {
     if (!res.headersSent) {
       res.status(proxyRes.statusCode);
@@ -247,9 +274,13 @@ app.all('/proxy/*', (req, res) => {
       const chunks = [];
       proxyRes.on('data', (c) => chunks.push(c));
       proxyRes.on('end', () => {
-        const raw = Buffer.concat(chunks).toString('utf8');
         let body;
-        try { body = JSON.parse(raw); } catch (_) { body = null; }
+        try {
+          body = JSON.parse(
+            decodeBody(Buffer.concat(chunks), proxyRes.headers['content-encoding'])
+              .toString('utf8'),
+          );
+        } catch (_) { body = null; }
 
         if (body && typeof body.accessToken === 'string') {
           const claims = decodeJwtPayload(body.accessToken);
@@ -265,8 +296,25 @@ app.all('/proxy/*', (req, res) => {
 
           const out = Buffer.from(JSON.stringify(body), 'utf8');
           res.setHeader('Content-Type', 'application/json');
+          // We are re-emitting PLAINTEXT. Any Content-Encoding copied from
+          // upstream now describes bytes that no longer exist, and the browser
+          // would fail to decode a body that was never compressed.
+          res.removeHeader('Content-Encoding');
           res.setHeader('Content-Length', out.length);
           return res.end(out);
+        }
+
+        // A 2xx on a token-issuing path that yields no accessToken means the
+        // capture silently failed and the body — token and all — is about to be
+        // handed to page JavaScript. Never fail quietly here: this is the exact
+        // shape of the gzip bug that cost a full debugging session.
+        if (proxyRes.statusCode >= 200 && proxyRes.statusCode < 300) {
+          console.error(
+            '[proxy] token capture FAILED on', targetUrl.pathname,
+            '— no accessToken parsed from a', proxyRes.statusCode, 'response',
+            `(content-encoding: ${proxyRes.headers['content-encoding'] || 'none'}).`,
+            'No session cookie was set; the client will 401 on every authed call.',
+          );
         }
 
         // Not a token response (a 401, a validation error): pass it through

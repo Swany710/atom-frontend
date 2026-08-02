@@ -6,8 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "npx live-server public --port=3001 --open=/index.html",
-    "test": "npm run test:voice && playwright test",
+    "test": "npm run test:voice && npm run test:proxy && playwright test",
     "test:voice": "node tests/live-voice.harness.js",
+    "test:proxy": "node tests/proxy-token-capture.harness.js",
     "test:headed": "playwright test --headed"
   },
   "dependencies": {
