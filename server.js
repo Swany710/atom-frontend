@@ -23,7 +23,12 @@ app.use(helmet({
       scriptSrc:   ["'self'"],
       styleSrc:    ["'self'", "'unsafe-inline'"],   // inline style="" attrs still used in markup
       mediaSrc:    ["'self'", 'blob:'],             // blob: URLs for recorded audio playback
-      connectSrc:  ["'self'", "wss://api.openai.com", "https://api.openai.com"],  // API proxy + OpenAI Realtime WebSocket
+      // Same-origin only. The api.openai.com entries (and the wss: one) existed
+      // for the OpenAI Realtime live-voice mode, removed 2026-07-28. Speech now
+      // goes ElevenLabs → Claude → ElevenLabs, all via the /proxy path on this
+      // origin, so the browser has no reason to reach OpenAI directly. Leaving
+      // the allowance in place only widened where injected script could talk to.
+      connectSrc:  ["'self'"],
       imgSrc:      ["'self'", 'data:'],
       fontSrc:     ["'self'"],
       objectSrc:   ["'none'"],

@@ -248,7 +248,18 @@ function startWaveformAnimation() {
 
 function getAudioCtx() {
     if (!audioCtx || audioCtx.state === 'closed') {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+        // No sampleRate override — let the browser pick the device's native rate.
+        //
+        // This used to force 24 000 Hz, which the OpenAI Realtime mode needed
+        // because it streamed raw PCM at that rate. That mode is gone (see the
+        // LIVE VOICE header below); audio now leaves as an encoded blob and
+        // comes back as MP3, so nothing downstream cares about the rate.
+        //
+        // Forcing it was actively harmful: mic hardware runs at 48 kHz, and
+        // createMediaStreamSource() across a rate mismatch resamples on Chrome,
+        // throws NotSupportedError on Firefox, and has shipped as silence on
+        // some Safari builds — a dead VAD with a mic light that stays on.
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
         // Playback analyser — drives the waveform while Atom speaks, and is the
         // node everything audible routes through on its way to the speakers.
@@ -335,13 +346,15 @@ const VAD_MAX_TURN_MS    = 30_000;
 const VAD_NO_SPEECH_MS   = 45_000;
 /** Ignore the first moments after Atom stops talking (room echo tail). */
 const VAD_REARM_MS       = 250;
+/** How often the VAD samples the mic. 50ms ≈ 20Hz — well under VAD_SILENCE_MS. */
+const VAD_TICK_MS        = 50;
 
 // -- State -------------------------------------------------------------------
 let isLiveVoiceActive = false;  // a hands-free session is running
 let liveRecorder      = null;   // MediaRecorder for the current turn
 let liveChunks        = [];
 let liveRecMime       = 'audio/webm';
-let liveVadRaf        = null;
+let liveVadTimer      = null;   // setInterval handle for the VAD loop
 let liveHeardSpeech   = false;
 let liveSilenceSince  = 0;
 let liveTurnStarted   = 0;
@@ -375,7 +388,10 @@ async function openLiveMic() {
     window._micGain = ctx.createGain();
     window._micGain.gain.value = 1;
     source.connect(window._micGain);
-    window._micGain.connect(micAnalyser);   // silent tap — never reaches speakers
+    // Silent tap — never reaches the speakers. runVadLoop() reads micAnalyser
+    // for BOTH turn detection and barge-in, so this gain must stay at 1 for the
+    // whole session. Muting it mutes the VAD, not the room.
+    window._micGain.connect(micAnalyser);
 }
 
 async function startLiveVoice() {
@@ -441,14 +457,22 @@ function endListeningTurn() {
 }
 
 /**
- * The single VAD loop. State-aware so one rAF drives listening, barge-in
+ * The single VAD loop. State-aware so one timer drives listening, barge-in
  * detection, and re-arming after Atom finishes speaking.
+ *
+ * Driven by setInterval, NOT requestAnimationFrame. rAF is throttled to zero in
+ * a hidden or backgrounded tab, and this loop is the only thing that ends a
+ * turn — including VAD_MAX_TURN_MS, the safety valve meant to catch a stuck
+ * mic. On rAF, switching tabs mid-sentence froze turn detection AND its own
+ * backstop: the recorder kept running with nothing left to stop it. Timers keep
+ * firing when hidden (clamped to ~1s, which is still well inside
+ * VAD_SILENCE_MS), so a turn started in the foreground always closes.
  */
 function runVadLoop() {
-    cancelAnimationFrame(liveVadRaf);
+    stopVadLoop();
 
     function tick() {
-        if (!isLiveVoiceActive) return;
+        if (!isLiveVoiceActive) { stopVadLoop(); return; }
         const level = getMicEnergy();
         const now   = Date.now();
 
@@ -461,19 +485,14 @@ function runVadLoop() {
                 // reopen the mic immediately and catch the whole interruption.
                 stopAllPlayback();
             }
-            liveVadRaf = requestAnimationFrame(tick);
             return;
         }
 
-        if (liveTurnBusy || (liveRearmAt && now < liveRearmAt)) {
-            liveVadRaf = requestAnimationFrame(tick);
-            return;
-        }
+        if (liveTurnBusy || (liveRearmAt && now < liveRearmAt)) return;
 
         // Not recording but idle and free → open a new turn.
         if (!liveRecorder || liveRecorder.state !== 'recording') {
             beginListeningTurn();
-            liveVadRaf = requestAnimationFrame(tick);
             return;
         }
 
@@ -485,7 +504,6 @@ function runVadLoop() {
                 liveSilenceSince = now;
             } else if (now - liveSilenceSince > VAD_SILENCE_MS) {
                 endListeningTurn();               // you stopped talking → send
-                liveVadRaf = requestAnimationFrame(tick);
                 return;
             }
         }
@@ -495,13 +513,17 @@ function runVadLoop() {
         } else if (!liveHeardSpeech && now - liveListenSince > VAD_NO_SPEECH_MS) {
             updateStatus('Still here — tap the mic when you want to talk.', 'info');
             stopLiveVoice();
-            return;
         }
-
-        liveVadRaf = requestAnimationFrame(tick);
     }
 
-    tick();
+    liveVadTimer = setInterval(tick, VAD_TICK_MS);
+    tick();   // don't wait a full tick for the first sample
+}
+
+/** Tear down the VAD timer. Safe to call when it isn't running. */
+function stopVadLoop() {
+    if (liveVadTimer) clearInterval(liveVadTimer);
+    liveVadTimer = null;
 }
 
 /** Ship the recorded turn through STT → Claude → TTS, then listen again. */
@@ -575,8 +597,7 @@ function stopLiveVoice() {
     liveTurnBusy      = false;
     liveHeardSpeech   = false;
 
-    cancelAnimationFrame(liveVadRaf);
-    liveVadRaf = null;
+    stopVadLoop();
 
     if (liveRecorder) {
         try {
@@ -796,7 +817,14 @@ async function startRecording() {
         updateRecordingUI(true);
         updateStatus('🎤 Listening… (Click to stop)', 'listening');
     } catch(e) {
-        updateStatus('Microphone error: ' + e.message, 'error');
+        // Re-throw. This used to swallow the error into updateStatus, which made
+        // the catch in fallbackToTapToTalk — the only caller — unreachable: a
+        // mic that never opened told the user "tap the mic to record" and then
+        // did nothing at all when they did. Reset local state, let the caller
+        // report it.
+        isRecording = false;
+        updateRecordingUI(false);
+        throw e;
     }
 }
 
@@ -883,6 +911,15 @@ function playResponseAudio(text) {
                     if (watchdog) clearTimeout(watchdog);
                     isSpeakingWave = false;
                     restoreMicGain();
+                    // Drop the graph edge for this reply. A MediaElementSource
+                    // node cannot be reused or re-created for the same element,
+                    // and it keeps that element alive as long as it stays
+                    // connected — so without this every spoken reply left a
+                    // permanent node hanging off `analyser` (and an <audio>
+                    // element that could never be collected) for the whole
+                    // session. currentAudio is nulled elsewhere, which hid the
+                    // leak rather than fixing it.
+                    try { src.disconnect(); } catch (e) { /* already torn down */ }
                     if (url) URL.revokeObjectURL(url);
                     resolve();
                 };
@@ -906,7 +943,20 @@ function playResponseAudio(text) {
                     arm(Number.isFinite(d) && d > 0 ? d * 1000 + 3_000 : 60_000);
                 };
 
-                if (window._micGain) window._micGain.gain.value = 0;
+                // DO NOT duck the mic here.
+                //
+                // This used to set _micGain.gain.value = 0 for the duration of
+                // playback to stop Atom hearing himself. It could not have done
+                // that — the mic tap is deliberately NOT connected to
+                // audioCtx.destination (see getAudioCtx), so there is no path
+                // from mic to speaker to suppress. What it DID do was silence
+                // micAnalyser, which sits downstream of _micGain and is the only
+                // thing runVadLoop() reads. getMicEnergy() returned ~0 for the
+                // whole reply, so `level > VAD_BARGE_LEVEL` never became true
+                // and barge-in was unreachable code.
+                //
+                // If real ducking is ever needed, add a separate gain node on a
+                // path that actually reaches the speakers — never on the VAD tap.
                 currentAudio.play().catch(done);
             });
         } catch (e) {

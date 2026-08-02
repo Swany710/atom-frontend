@@ -38,6 +38,8 @@ function buildSandbox(opts = {}) {
     const log = { statuses: [], posted: [], messages: [], spoke: [] };
 
     // --- rAF: collected, stepped manually -----------------------------------
+    // Still stubbed because the waveform loop uses it, but the VAD no longer
+    // does — see the virtual-timer note below.
     let rafQueue = [];
     let rafId = 0;
     const requestAnimationFrame = (fn) => { rafQueue.push({ id: ++rafId, fn }); return rafId; };
@@ -47,12 +49,21 @@ function buildSandbox(opts = {}) {
     const drain = () => new Promise(res => setImmediate(res));
 
     // --- virtual timers ------------------------------------------------------
+    // setInterval is modelled as a re-arming entry, not a one-shot, because the
+    // VAD loop moved off requestAnimationFrame onto setInterval (rAF is
+    // throttled to zero in a background tab, which froze turn detection AND its
+    // own VAD_MAX_TURN_MS backstop). Repeating timers re-arm at NOW + every
+    // after firing, so they tick once per advanced interval rather than once
+    // per call.
     let timers = [];
     let timerId = 0;
     const fireDueTimers = () => {
         const due = timers.filter(t => t.at <= NOW);
         timers = timers.filter(t => t.at > NOW);
-        due.sort((a, b) => a.at - b.at).forEach(t => t.fn());
+        due.sort((a, b) => a.at - b.at).forEach(t => {
+            if (t.every != null) timers.push({ ...t, at: NOW + t.every });
+            t.fn();
+        });
     };
 
     // --- Fake MediaRecorder --------------------------------------------------
@@ -81,16 +92,38 @@ function buildSandbox(opts = {}) {
     }
 
     // --- Fake Web Audio ------------------------------------------------------
+    //
+    // The analyser HONOURS an upstream gain node. This is not gold-plating: the
+    // old fake read micLevel straight through and ignored the graph entirely,
+    // so when playResponseAudio() ducked _micGain to 0 for the length of every
+    // reply — silencing the very analyser runVadLoop() reads, and making
+    // barge-in unreachable in production — this harness still reported PASS.
+    // Model the gain and that class of bug fails the suite instead of shipping.
     const node = () => ({ connect() {}, disconnect() {}, gain: { value: 1 } });
     class FakeAnalyser {
-        constructor() { this.fftSize = 256; this.smoothingTimeConstant = 0; this.frequencyBinCount = 128; }
+        constructor() {
+            this.fftSize = 256; this.smoothingTimeConstant = 0; this.frequencyBinCount = 128;
+            this._upstream = null;
+        }
         connect() {} disconnect() {}
-        getByteFrequencyData(arr) { arr.fill(Math.round(micLevel * 255)); }
+        getByteFrequencyData(arr) {
+            const g = this._upstream ? this._upstream.gain.value : 1;
+            arr.fill(Math.round(micLevel * g * 255));
+        }
     }
+    /** Gain node that registers itself on whatever analyser it feeds. */
+    const gainNode = () => {
+        const n = {
+            gain: { value: 1 },
+            connect(target) { if (target instanceof FakeAnalyser) target._upstream = n; },
+            disconnect() {},
+        };
+        return n;
+    };
     class FakeAudioContext {
         constructor() { this.state = 'running'; this.currentTime = 0; this.destination = node(); }
         createAnalyser() { return new FakeAnalyser(); }
-        createGain() { return node(); }
+        createGain() { return gainNode(); }
         createMediaStreamSource() { return node(); }
         createMediaElementSource() { return node(); }
         createBuffer() { return { duration: 0.1, copyToChannel() {} }; }
@@ -131,6 +164,12 @@ function buildSandbox(opts = {}) {
         Date: { now: () => NOW },
         setTimeout: (fn, ms) => { const id = ++timerId; timers.push({ id, at: NOW + (ms || 0), fn }); return id; },
         clearTimeout: (id) => { timers = timers.filter(t => t.id !== id); },
+        setInterval: (fn, ms) => {
+            const id = ++timerId;
+            timers.push({ id, at: NOW + (ms || 0), fn, every: ms || 0 });
+            return id;
+        },
+        clearInterval: (id) => { timers = timers.filter(t => t.id !== id); },
         requestAnimationFrame, cancelAnimationFrame,
         MediaRecorder: FakeMediaRecorder,
         AudioContext: FakeAudioContext,
@@ -204,7 +243,7 @@ async function check(name, fn) {
 }
 function assert(c, m) { if (!c) throw new Error(m); }
 
-// Simulate a stretch of wall-clock time with rAF firing through it.
+// Simulate a stretch of wall-clock time with timers and rAF firing through it.
 async function elapse(s, ms, step = 100) {
     for (let t = 0; t < ms; t += step) { advance(step); await s.stepFrames(1); }
 }
@@ -334,10 +373,53 @@ await check('barge-in stops playback and clears the re-arm delay', async () => {
 
     s.set('isSpeakingWave', true);           // pretend Atom is mid-reply
     setMic(0.3);                       // you talk over him
-    await s.stepFrames(2);
+    await elapse(s, 200);
 
     assert(s.get('liveBargedIn') === true, 'barge-in not registered');
     assert(s.get('isSpeakingWave') === false, 'playback was not stopped');
+});
+
+await check('barge-in still works while Atom is actually speaking (mic tap not ducked)', async () => {
+    // Regression guard for the bug the old harness could not see. Ducking
+    // _micGain during playback silences micAnalyser — which runVadLoop() reads
+    // for BOTH turn detection and barge-in — so the interrupt never fires. The
+    // duck cannot suppress feedback either: micAnalyser is deliberately never
+    // connected to destination, so there is no mic-to-speaker path to cut.
+    const s = buildSandbox({ speakMs: 5000 });   // long reply, still playing
+    await s.get('startLiveVoice()');
+    await s.drain();
+
+    setMic(0.2); await elapse(s, 400);
+    setMic(0);   await elapse(s, 1400);
+    for (let i = 0; i < 6; i++) await s.drain();
+
+    assert(s.get('isSpeakingWave') === true, 'precondition: Atom should be mid-reply');
+
+    setMic(0.3);                       // talk over the reply
+    await elapse(s, 300);
+    for (let i = 0; i < 6; i++) await s.drain();
+
+    // Assert on the durable evidence, not liveBargedIn — that flag is consumed
+    // and reset by sendLiveTurn's finally the moment the cut-short playback
+    // promise settles. A 5s clip cannot have ended naturally in 300ms, so
+    // playback stopping AND the re-arm delay being skipped means the interrupt
+    // fired. If the mic tap is ever ducked again, level stays 0, playback runs
+    // to completion, and both of these flip.
+    assert(s.get('isSpeakingWave') === false,
+        'playback was not cut — barge-in never fired. Is the mic tap being ducked?');
+    assert(s.get('liveRearmAt') === 0,
+        're-arm delay was not skipped — playback ended on its own, not by barge-in');
+});
+
+await check('VAD is driven by a timer, not requestAnimationFrame', async () => {
+    // rAF is throttled to zero in a hidden tab. The VAD loop is the only thing
+    // that closes a turn, including its own VAD_MAX_TURN_MS safety valve, so on
+    // rAF a backgrounded tab left the recorder running with nothing to stop it.
+    const src = fs.readFileSync(VOICE_JS, 'utf8');
+    assert(/liveVadTimer\s*=\s*setInterval\(/.test(src),
+        'VAD loop is not on setInterval');
+    assert(!/liveVadRaf/.test(src),
+        'leftover rAF handle for the VAD loop');
 });
 
 await check('stopLiveVoice releases the mic and cannot leave a turn in flight', async () => {

@@ -307,6 +307,11 @@ function updateStatus(message, type = 'normal') {
     statusText.textContent = message;
     statusText.classList.remove('listening', 'processing', 'success', 'error', 'warning', 'info');
     if (type !== 'normal') statusText.classList.add(type);
+    // setInputMode('text') hides this element, which is fine for chatter like
+    // "Listening…" but silently ate mic and voice FAILURES too — the user got no
+    // feedback at all, which reads as "the button does nothing". Errors always
+    // surface; the next mode switch re-applies the normal visibility rules.
+    if (type === 'error') statusText.style.display = '';
 }
 
 function updateMemoryStatus(type, text) {
