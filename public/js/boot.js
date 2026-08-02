@@ -4,8 +4,12 @@
  * drop 'unsafe-inline' for scripts (see server.js).
  */
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     setupTextInput(); // wire input listeners regardless of login state
+    // The JWT lives in an httpOnly cookie the page cannot read, so login state
+    // comes from the proxy. This MUST be awaited before isLoggedIn() — every
+    // session accessor reads the object it populates.
+    await AtomAPI.loadSession();
     if (AtomAPI.isLoggedIn()) { showApp(); }
     // else: auth screen visible by default
 });

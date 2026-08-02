@@ -32,6 +32,28 @@ app.use(helmet({
   },
 }));
 
+// ─── Trust proxy ───────────────────────────────────────────────────────────────
+// Railway terminates TLS and forwards, so without this req.ip is the edge
+// address for every visitor. That address is what we hand the backend as
+// X-Forwarded-For, and the backend uses it as the anonymous rate-limit bucket.
+//
+// This defaults to 0 OUTSIDE production, and that default is load-bearing.
+// `trust proxy: n` tells Express to believe the (n+1)th-from-last entry of a
+// client-supplied X-Forwarded-For header. If nothing is actually in front of
+// this process, "trust one hop" means trusting a header the client wrote — so
+// a client can pick its own rate-limit bucket and walk around login throttling
+// by sending a different value each request. In production Railway's edge
+// appends the observed address, so one hop is real; run it anywhere without a
+// proxy and it is a hole.
+//
+// Set TRUST_PROXY_HOPS explicitly to the true depth of your chain (add one per
+// additional CDN/proxy). Too low and everyone shares a bucket; too high and
+// clients can forge one. Too low is the safe direction to be wrong in.
+const TRUST_PROXY_HOPS = Number(
+  process.env.TRUST_PROXY_HOPS ?? (process.env.NODE_ENV === 'production' ? 1 : 0),
+);
+app.set('trust proxy', Number.isFinite(TRUST_PROXY_HOPS) ? TRUST_PROXY_HOPS : 0);
+
 const PORT = process.env.PORT || 3000;
 
 // ─── Startup env validation ────────────────────────────────────────────────────
@@ -48,6 +70,74 @@ const HOP_BY_HOP = new Set([
 ]);
 
 const PROXY_TIMEOUT_MS = 65_000;
+
+// ─── Session cookie ────────────────────────────────────────────────────────────
+// The JWT used to live in localStorage, where any successful XSS could read it
+// and exfiltrate a 24-hour credential. The CSP above is the primary defence and
+// it is strict, but "one bug away from total account takeover" is a bad place to
+// stand. The token now lives in an httpOnly cookie that page JavaScript cannot
+// read at all; this proxy is the only thing that ever sees it.
+//
+// httpOnly  — unreadable from document.cookie, so XSS cannot exfiltrate it
+// sameSite  — 'strict' blocks the cookie on cross-site requests, which is what
+//             makes CSRF a non-issue now that auth rides on a cookie instead of
+//             an explicit header. Frontend and API proxy are same-origin, so
+//             strict costs nothing.
+// secure    — HTTPS only in production; off locally so http://localhost works
+// path '/'  — the proxy and the app share the origin
+const SESSION_COOKIE = 'atom_session';
+const IS_PROD = process.env.NODE_ENV === 'production';
+
+function sessionCookieOptions(maxAgeMs) {
+  return {
+    httpOnly: true,
+    sameSite: 'strict',
+    secure:   IS_PROD,
+    path:     '/',
+    ...(maxAgeMs ? { maxAge: maxAgeMs } : {}),
+  };
+}
+
+/**
+ * Minimal cookie-header parser.
+ *
+ * Deliberately not pulling in cookie-parser: this needs exactly one cookie, and
+ * a security fix is a poor moment to widen the dependency surface.
+ */
+function readCookie(req, name) {
+  const header = req.headers?.cookie;
+  if (!header) return null;
+  for (const part of header.split(';')) {
+    const eq = part.indexOf('=');
+    if (eq < 0) continue;
+    if (part.slice(0, eq).trim() !== name) continue;
+    try {
+      return decodeURIComponent(part.slice(eq + 1).trim());
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Decode a JWT payload WITHOUT verifying it. */
+function decodeJwtPayload(token) {
+  // The signature is verified by the backend on every request — this is only
+  // used to render the signed-in user's name and role, never to grant access.
+  // Anything gated on the result is re-checked server-side.
+  const parts = String(token || '').split('.');
+  if (parts.length < 2) return null;
+  try {
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/** Paths whose JSON response carries a freshly-minted token we must capture. */
+const TOKEN_ISSUING_PATHS = [/^\/auth\/login$/, /^\/auth\/register$/];
+const issuesToken = (p) => TOKEN_ISSUING_PATHS.some((re) => re.test(p));
 
 // ─── Anonymous allowlist ───────────────────────────────────────────────────────
 // SECURITY: the proxy signs requests with the server-side API_KEY, which the
@@ -87,14 +177,30 @@ app.all('/proxy/*', (req, res) => {
   }
   delete headers['host'];
 
+  // The browser must never influence what the backend believes about the
+  // client address. The backend runs with `trust proxy` and uses the resulting
+  // IP as the anonymous rate-limit bucket, so a client that could set its own
+  // X-Forwarded-For could evade login rate limiting entirely. Drop whatever
+  // came in and state the address WE observed.
+  delete headers['x-forwarded-for'];
+  delete headers['x-real-ip'];
+  headers['X-Forwarded-For'] = req.ip;
+
   // Auth forwarding:
   //   Logged-in user  → forward their JWT; the backend scopes data to them.
   //   Anonymous       → only allowlisted paths (login/register/health) pass,
   //                     signed with the API key so the backend accepts them.
   //   Anything else   → 401. The API key must NEVER be attached to arbitrary
   //                     anonymous requests — it is the owner/admin credential.
-  const userToken = req.headers['x-atom-token'];
+  //
+  // The token comes from the httpOnly session cookie. The legacy X-Atom-Token
+  // header is still accepted so a stale open tab keeps working through its
+  // current session, but it is never issued any more and is always stripped
+  // before forwarding.
+  const cookieToken = readCookie(req, SESSION_COOKIE);
+  const userToken   = cookieToken || req.headers['x-atom-token'];
   delete headers['x-atom-token']; // strip before forwarding to backend
+  delete headers['cookie'];       // the backend has no use for browser cookies
   if (userToken) {
     headers['Authorization'] = `Bearer ${userToken}`;
   } else if (isAnonAllowed(targetUrl.pathname)) {
@@ -116,6 +222,8 @@ app.all('/proxy/*', (req, res) => {
     timeout  : PROXY_TIMEOUT_MS,
   };
 
+  const captureToken = issuesToken(targetUrl.pathname);
+
   const proxyReq = protocol.request(options, (proxyRes) => {
     if (!res.headersSent) {
       res.status(proxyRes.statusCode);
@@ -125,6 +233,45 @@ app.all('/proxy/*', (req, res) => {
         }
       }
     }
+
+    // Login / register: buffer the (tiny) JSON response so the freshly-minted
+    // accessToken can be moved out of the response body and into an httpOnly
+    // cookie. The browser gets the rest of the payload but never the token —
+    // that is the whole point of the change. Everything else streams as before.
+    if (captureToken) {
+      const chunks = [];
+      proxyRes.on('data', (c) => chunks.push(c));
+      proxyRes.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        let body;
+        try { body = JSON.parse(raw); } catch (_) { body = null; }
+
+        if (body && typeof body.accessToken === 'string') {
+          const claims = decodeJwtPayload(body.accessToken);
+          // Match the cookie lifetime to the token's own expiry so the browser
+          // drops it exactly when it stops being useful. Falls back to 24h,
+          // which is the backend's JWT_EXPIRES_IN default.
+          const maxAge = claims?.exp
+            ? Math.max(0, claims.exp * 1000 - Date.now())
+            : 24 * 60 * 60 * 1000;
+
+          res.cookie(SESSION_COOKIE, body.accessToken, sessionCookieOptions(maxAge));
+          delete body.accessToken;
+
+          const out = Buffer.from(JSON.stringify(body), 'utf8');
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Content-Length', out.length);
+          return res.end(out);
+        }
+
+        // Not a token response (a 401, a validation error): pass it through
+        // byte-for-byte. Content-Length was already copied from upstream.
+        return res.end(Buffer.concat(chunks));
+      });
+      proxyRes.on('error', () => { if (!res.writableEnded) res.end(); });
+      return;
+    }
+
     proxyRes.pipe(res);
   });
 
@@ -138,6 +285,43 @@ app.all('/proxy/*', (req, res) => {
   });
 
   req.pipe(proxyReq);
+});
+
+// ─── Session ───────────────────────────────────────────────────────────────────
+// The page can no longer read the JWT, so it can no longer decode its own
+// claims. This endpoint hands back the DISPLAY claims only — never the token.
+//
+// These values drive UI affordances (which name to show, whether to render the
+// admin tab). They are not a security boundary: the backend re-checks the role
+// on every request that matters, so a user who lies to their own browser about
+// being an admin simply gets a tab full of 403s.
+app.get('/api/session', (req, res) => {
+  const token  = readCookie(req, SESSION_COOKIE);
+  const claims = token ? decodeJwtPayload(token) : null;
+
+  if (!claims) return res.json({ authenticated: false });
+
+  // Expired token: clear the cookie so the app lands on the login screen
+  // instead of firing a round of doomed requests first.
+  if (claims.exp && claims.exp * 1000 <= Date.now()) {
+    res.clearCookie(SESSION_COOKIE, sessionCookieOptions());
+    return res.json({ authenticated: false });
+  }
+
+  res.json({
+    authenticated: true,
+    userId: claims.sub  ?? null,
+    email:  claims.email ?? null,
+    role:   claims.role  ?? 'member',
+    orgId:  claims.org   ?? null,
+  });
+});
+
+// Logout has to happen server-side now — the cookie is httpOnly, so the page
+// cannot clear it itself.
+app.post('/api/logout', (_req, res) => {
+  res.clearCookie(SESSION_COOKIE, sessionCookieOptions());
+  res.json({ ok: true });
 });
 
 // ─── Runtime config ────────────────────────────────────────────────────────────

@@ -8,15 +8,31 @@
 const { test, expect } = require('@playwright/test');
 
 const BASE_URL = process.env.APP_URL || 'http://localhost:3000';
+
+// Payload: { sub: 'test-user', email: 'test@example.com', role: 'member',
+//            org: 'test-org', exp: 4102444800 }  (exp = 2100-01-01)
+// The signature is junk on purpose — the frontend proxy only DECODES the token
+// to render display claims; the backend is what verifies it. These tests never
+// reach the backend.
 const TEST_JWT =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' +
-    'eyJzdWIiOiJ0ZXN0LXVzZXIiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20ifQ.' +
+    'eyJzdWIiOiJ0ZXN0LXVzZXIiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJyb2xlIjoibWVtYmVyIiwib3JnIjoidGVzdC1vcmciLCJleHAiOjQxMDI0NDQ4MDB9.' +
     'test-signature';
 
-test.beforeEach(async ({ page }) => {
-    await page.addInitScript(token => {
-        window.localStorage.setItem('atom_jwt', token);
-    }, TEST_JWT);
+// The JWT moved from localStorage into an httpOnly cookie, so the harness has
+// to seed a cookie rather than a storage key — page JavaScript can no longer
+// set it at all.
+test.beforeEach(async ({ context }) => {
+    const url = new URL(BASE_URL);
+    await context.addCookies([{
+        name:     'atom_session',
+        value:    TEST_JWT,
+        domain:   url.hostname,
+        path:     '/',
+        httpOnly: true,
+        secure:   url.protocol === 'https:',
+        sameSite: 'Strict',
+    }]);
 });
 
 test.describe('App boot', () => {

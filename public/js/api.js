@@ -23,39 +23,43 @@
   /** Update the base URL (called by loadConfig). */
   function setBase(url) { _base = url.replace(/\/+$/, ''); }
 
-  // -- Token / session helpers -----------------------------------------------
-  var TOKEN_KEY = 'atom_jwt';
-  function getToken()   { return localStorage.getItem(TOKEN_KEY); }
-  function setToken(t)  { localStorage.setItem(TOKEN_KEY, t); }
-  function clearToken() { localStorage.removeItem(TOKEN_KEY); }
-  function isLoggedIn() { return !!localStorage.getItem(TOKEN_KEY); }
+  // -- Session ---------------------------------------------------------------
+  //
+  // The JWT used to live in localStorage, which meant any successful XSS could
+  // read a 24-hour credential straight out of the page and walk off with the
+  // account. It now lives in an httpOnly cookie set by the proxy (server.js):
+  // the browser attaches it to same-origin requests automatically and page
+  // JavaScript cannot read it at all.
+  //
+  // What we keep here is the non-secret half — the display claims, fetched from
+  // /api/session at boot. Nothing here is a security boundary; the backend
+  // re-checks identity and role on every request. Lying to this object gets you
+  // a UI tab full of 403s, not access.
+  var _session = null;   // { authenticated, userId, email, role, orgId }
 
-  function getTokenPayload() {
-    var tok = getToken();
-    if (!tok || tok.split('.').length < 2) return null;
+  /**
+   * Load the session from the proxy. Must be awaited before the first
+   * isLoggedIn()/getUserId() call — boot.js does this.
+   */
+  async function loadSession() {
     try {
-      var payload = tok.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-      return JSON.parse(atob(payload));
+      var res = await fetch('/api/session', {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      });
+      _session = res.ok ? await res.json() : { authenticated: false };
     } catch (_) {
-      return null;
+      _session = { authenticated: false };
     }
+    return _session;
   }
 
-  function getUserId() {
-    var payload = getTokenPayload();
-    return payload && payload.sub ? payload.sub : null;
-  }
+  function isLoggedIn() { return !!(_session && _session.authenticated); }
+  function getUserId()  { return (_session && _session.userId) || null; }
+  function getUserEmail() { return (_session && _session.email) || null; }
 
-  function getUserEmail() {
-    var payload = getTokenPayload();
-    return payload && payload.email ? payload.email : null;
-  }
-
-  /** Org role from the JWT: 'owner' | 'admin' | 'member' (null if not logged in) */
-  function getUserRole() {
-    var payload = getTokenPayload();
-    return payload && payload.role ? payload.role : null;
-  }
+  /** Org role: 'owner' | 'admin' | 'member' (null if not logged in) */
+  function getUserRole() { return (_session && _session.role) || null; }
 
   /** True when the current user may see org-admin UI (backend re-enforces) */
   function isOrgAdmin() {
@@ -63,12 +67,15 @@
     return r === 'owner' || r === 'admin';
   }
 
-  /** Headers added to every request. Injects JWT if present. */
+  /**
+   * Headers added to every request.
+   *
+   * No token header any more — the session cookie rides along automatically on
+   * same-origin requests. `credentials: 'same-origin'` in request() is what
+   * actually carries it.
+   */
   function commonHeaders(extra) {
-    var h = { Accept: 'application/json' };
-    var tok = getToken();
-    if (tok) h['X-Atom-Token'] = tok;
-    return Object.assign(h, extra || {});
+    return Object.assign({ Accept: 'application/json' }, extra || {});
   }
 
   function authHeaders(extra) {
@@ -97,6 +104,9 @@
     const fetchOpts = Object.assign({}, opts, {
       signal  : controller.signal,
       headers : commonHeaders(opts && opts.headers),
+      // Carries the httpOnly session cookie. Explicit rather than relying on
+      // the default — this is the only thing authenticating the request now.
+      credentials: 'same-origin',
     });
 
     try {
@@ -124,8 +134,13 @@
         // Clear the dead token and return to the login screen instead of
         // surfacing a confusing "invalid API key" error in every panel.
         // (Skip /auth/ requests — a failed login attempt is a normal 401.)
-        if (res.status === 401 && getToken() && !url.includes('/auth/')) {
-          clearToken();
+        if (res.status === 401 && isLoggedIn() && !url.includes('/auth/')) {
+          // The cookie is httpOnly, so the page can't clear it itself — ask the
+          // proxy to, then reload into the login screen.
+          _session = null;
+          try {
+            await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+          } catch (_) { /* reloading anyway */ }
           location.reload();
           return new Promise(() => {}); // halt callers — page is reloading
         }
@@ -274,19 +289,26 @@
 
   // ─── Auth helpers ─────────────────────────────────────────────────────────
 
-  /** POST to /auth/login — stores token, returns { accessToken, userId, email } */
+  /**
+   * POST to /auth/login.
+   *
+   * The proxy strips accessToken out of the response and sets it as an httpOnly
+   * cookie, so it never reaches this code. We refresh the session claims from
+   * /api/session instead.
+   */
   async function login(email, password) {
     const res = await request('/proxy/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     }, { noRetry: true });
-    if (res && res.accessToken) setToken(res.accessToken);
+    await loadSession();
     return res;
   }
 
   /**
-   * POST to /auth/register — invite-only; stores token.
+   * POST to /auth/register — invite-only. As with login, the token is captured
+   * by the proxy into an httpOnly cookie and never surfaces here.
    * companyName names the new organization (ignored for org-bound invites,
    * where the user joins the inviting company instead).
    */
@@ -296,13 +318,16 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, displayName, inviteCode, companyName }),
     }, { noRetry: true });
-    if (res && res.accessToken) setToken(res.accessToken);
+    await loadSession();
     return res;
   }
 
-  /** Clear stored token and reload to login screen */
-  function logout() {
-    clearToken();
+  /** Clear the session cookie (proxy-side — it's httpOnly) and reload. */
+  async function logout() {
+    _session = null;
+    try {
+      await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+    } catch (_) { /* reload regardless — nothing works without the cookie */ }
     window.location.reload();
   }
 
@@ -313,8 +338,8 @@
     state, withButton, confirm,
     // Auth
     login, register, logout,
-    getToken, setToken, clearToken, isLoggedIn,
-    getTokenPayload, getUserId, getUserEmail, getUserRole, isOrgAdmin, authHeaders,
+    loadSession, isLoggedIn,
+    getUserId, getUserEmail, getUserRole, isOrgAdmin, authHeaders,
   };
 
 })(window);

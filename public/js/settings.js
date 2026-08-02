@@ -9,15 +9,16 @@
 const OAUTH_BASE = '/proxy/email/oauth';
 
 /**
- * Returns fetch() headers that include the logged-in user's JWT so the proxy
- * can forward it as Authorization: Bearer, ensuring every OAuth request is
- * scoped to the requesting user — not the server owner.
+ * Returns fetch() options for OAuth calls.
+ *
+ * The JWT used to be attached here as an X-Atom-Token header read out of
+ * localStorage. It now lives in an httpOnly cookie, which the browser attaches
+ * to these same-origin requests automatically — the proxy reads it there and
+ * forwards it as Authorization: Bearer, so every OAuth request is still scoped
+ * to the requesting user rather than the server owner.
  */
 function _oauthHeaders(extra) {
-    const h = Object.assign({}, extra || {});
-    const tok = AtomAPI.getToken();
-    if (tok) h['X-Atom-Token'] = tok;
-    return h;
+    return Object.assign({}, extra || {});
 }
 
 // ── Modal open / close ─────────────────────────────────────────────────────
@@ -37,20 +38,12 @@ function closeSettings() {
 // ── Status refresh ─────────────────────────────────────────────────────────
 
 async function refreshSettingsStatus() {
-    // Show which account is logged in by decoding the stored JWT
+    // Show which account is logged in. The JWT is no longer readable from the
+    // page (httpOnly cookie), so this comes from the session claims the proxy
+    // hands back at /api/session.
     const accountEl = document.getElementById('accountEmail');
     if (accountEl) {
-        try {
-            const tok = AtomAPI.getToken();
-            if (tok) {
-                const payload = JSON.parse(atob(tok.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-                accountEl.textContent = payload.email || '—';
-            } else {
-                accountEl.textContent = '—';
-            }
-        } catch (_) {
-            accountEl.textContent = '—';
-        }
+        accountEl.textContent = AtomAPI.getUserEmail() || '—';
     }
     await Promise.all([refreshGmailStatus(), refreshOutlookStatus()]);
 }
