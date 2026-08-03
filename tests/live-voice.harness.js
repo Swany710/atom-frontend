@@ -436,6 +436,58 @@ await check('stopLiveVoice releases the mic and cannot leave a turn in flight', 
     assert(!s.log.posted.includes('/ai/voice'), 'teardown sent a half-recorded turn');
 });
 
+await check('pressing stop mid-sentence still sends what you said', async () => {
+    // Stop means "close the mic", not "throw away my turn". The old teardown
+    // nulled onstop before stopping the recorder, so speaking and then hitting
+    // stop silently ate the whole turn — no transcript, no answer, no error.
+    const s = buildSandbox();
+    await s.get('startLiveVoice()');
+    await s.drain();
+
+    setMic(0.2);
+    await elapse(s, 500);               // talking — no trailing silence yet
+
+    await s.get('toggleRecording()');   // user presses stop mid-sentence
+    for (let i = 0; i < 8; i++) await s.drain();
+
+    assert(s.get('isLiveVoiceActive') === false, 'session should be over');
+    assert(s._state.tracksStopped > 0, 'microphone was not released');
+    assert(s.log.posted.includes('/ai/voice'), 'the spoken turn was discarded');
+    const roles = s.log.messages.map(m => m[0]);
+    assert(roles.includes('assistant'), 'no answer came back for the flushed turn');
+});
+
+await check('pressing stop without speaking does not burn an API call', async () => {
+    const s = buildSandbox();
+    await s.get('startLiveVoice()');
+    await s.drain();
+
+    setMic(0.005);                      // room tone only
+    await elapse(s, 500);
+
+    await s.get('toggleRecording()');
+    for (let i = 0; i < 8; i++) await s.drain();
+
+    assert(!s.log.posted.includes('/ai/voice'), 'sent silence to the API');
+});
+
+await check('teardowns that nobody asked for still discard the partial turn', async () => {
+    // Mode switch / recorder error / emergency reset are not "I am done
+    // talking" — half a turn from those is noise. Only the mic button flushes.
+    const s = buildSandbox();
+    await s.get('startLiveVoice()');
+    await s.drain();
+
+    setMic(0.2);
+    await elapse(s, 500);
+
+    s.get('stopLiveVoice()');           // bare call, as chat.js makes it
+    for (let i = 0; i < 8; i++) await s.drain();
+
+    assert(!s.log.posted.includes('/ai/voice'),
+        'a non-user teardown flushed a partial turn');
+});
+
 await check('toggleRecording starts then stops a live session', async () => {
     const s = buildSandbox();
     await s.get('toggleRecording()');

@@ -588,35 +588,80 @@ async function sendLiveTurn() {
         // opens the next turn once the re-arm window closes, so we never start
         // recording into the tail of Atom's own voice.
         if (isLiveVoiceActive) updateStatus('🎤 Listening…', 'listening');
+        // Session was stopped mid-turn and we flushed the last thing said.
+        // Don't leave the user parked on "finishing that up…" forever.
+        else updateStatus('Voice session ended.', 'info');
     }
 }
 
-/** End the hands-free session and release the mic. */
-function stopLiveVoice() {
-    isLiveVoiceActive = false;
-    liveTurnBusy      = false;
-    liveHeardSpeech   = false;
+/**
+ * End the hands-free session and release the mic.
+ *
+ * @param   {object}  [options]
+ * @param   {boolean} [options.flush]  Send the turn that is mid-recording
+ *                                     instead of discarding it.
+ * @returns {boolean} true if a final turn was handed off for processing.
+ *
+ * Two different intents share this function, and they want opposite things from
+ * the audio currently in the buffer:
+ *
+ *   flush: true  — the USER pressed stop. They have just finished saying
+ *                  something and are waiting on an answer. Stopping means "close
+ *                  the mic", not "throw away what I said" — discarding it here
+ *                  silently ate the whole turn.
+ *   flush: false — a teardown nobody asked for: recorder error, MediaRecorder
+ *                  that would not construct, idle timeout, mode switch to
+ *                  text/dictation, emergency reset. Half a turn from one of
+ *                  those is noise; keep dropping it. This stays the default so
+ *                  the nine other callers are unaffected.
+ *
+ * A request already in flight (POST /ai/voice -> Claude -> TTS) is never
+ * cancelled in either mode. It is already sent and already being paid for, and
+ * the user still wants the reply. sendLiveTurn's finally sees
+ * isLiveVoiceActive === false and simply does not reopen the mic.
+ */
+function stopLiveVoice(options) {
+    const flush = !!(options && options.flush);
 
+    isLiveVoiceActive = false;
     stopVadLoop();
+
+    // Only meaningful if we are actually mid-recording AND heard speech —
+    // flushing silence would just burn an STT call on room tone.
+    const flushing = flush && !!liveRecorder
+        && liveRecorder.state === 'recording' && liveHeardSpeech;
 
     if (liveRecorder) {
         try {
-            liveRecorder.onstop = null;         // don't send a half turn on teardown
+            // Leaving onstop attached is what lets sendLiveTurn() run.
+            if (!flushing) liveRecorder.onstop = null;
             if (liveRecorder.state === 'recording') liveRecorder.stop();
-        } catch (e) {}
+        } catch (e) { /* already inactive */ }
         liveRecorder = null;
     }
-    liveChunks = [];
+
+    if (flushing) {
+        // Hand off to sendLiveTurn via onstop. Deliberately do NOT clear
+        // liveChunks or liveHeardSpeech — sendLiveTurn reads both, and its
+        // own guard drops the turn if the blob is too small to hold speech.
+        liveTurnBusy     = true;
+        isProcessingWave = true;
+    } else {
+        liveTurnBusy     = false;
+        liveHeardSpeech  = false;
+        liveChunks       = [];
+        isProcessingWave = false;
+        stopAllPlayback();
+    }
 
     if (micStream) {
         micStream.getTracks().forEach(t => t.stop());
         micStream = null;
     }
 
-    stopAllPlayback();
-    isRecording      = false;
-    isProcessingWave = false;
+    isRecording = false;
     updateRecordingUI(false);
+    return flushing;
 }
 
 // -- Tap-to-talk fallback ------------------------------------------------------
@@ -640,9 +685,12 @@ async function fallbackToTapToTalk(reason) {
 
 async function toggleRecording() {
     if (isLiveVoiceActive) {
-        // End the hands-free session
-        stopLiveVoice();
-        updateStatus('Voice session ended.', 'info');
+        // End the hands-free session. flush: the user pressed stop right after
+        // saying something and is waiting on the answer — close the mic, but
+        // still send what they said.
+        const flushed = stopLiveVoice({ flush: true });
+        if (flushed) updateStatus('Got it — finishing that up…', 'processing');
+        else         updateStatus('Voice session ended.', 'info');
     } else if (isRecording) {
         // A one-shot tap-to-record is in progress — stop it and transcribe
         stopRecording();
